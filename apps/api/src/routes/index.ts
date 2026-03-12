@@ -1,0 +1,18 @@
+import { FastifyInstance } from "fastify";
+import authRoutes from "./auth.js";
+import restaurantRoutes from "./restaurants.js";
+import orderRoutes from "./orders.js";
+import paymentRoutes from "./payments.js";
+import adminRoutes from "./admin.js";
+import supportRoutes from "./support.js";
+import trackingRoutes from "./tracking.js";
+
+export async function registerRoutes(fastify: FastifyInstance) {
+  await fastify.register(authRoutes, { prefix: "/auth" });
+  await fastify.register(restaurantRoutes, { prefix: "/restaurants" });
+  await fastify.register(orderRoutes, { prefix: "/orders" });
+  await fastify.register(paymentRoutes, { prefix: "/payments" });
+  await fastify.register(adminRoutes, { prefix: "/admin" });
+  await fastify.register(supportRoutes, { prefix: "/support" });
+  await fastify.register(trackingRoutes, { prefix: "/tracking" });
+}

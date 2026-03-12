@@ -76,3 +76,5 @@ service-account*.json
 
 .agent
 personal/
+
+infra/firestore/firestore.rules

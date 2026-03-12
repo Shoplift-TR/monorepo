@@ -1,5 +1,5 @@
 {
-  "name": "@monorepo/api",
+  "name": "@shoplift/api",
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
@@ -26,7 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@monorepo/types": "*",
+    "@shoplift/types": "*",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.3.0",

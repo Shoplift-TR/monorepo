@@ -1,15 +1,18 @@
 {
-  "name": "api",
-  "version": "1.0.0",
+  "name": "@monorepo/api",
+  "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon --watch src --ext ts --exec ts-node-esm src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -23,6 +26,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@monorepo/types": "*",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/rate-limit": "^10.3.0",

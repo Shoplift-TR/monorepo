@@ -9,5 +9,29 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.19.37",
+    "@types/supertest": "^7.2.0",
+    "jest": "^30.3.0",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.8.2",
+    "firebase-admin": "^13.7.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "rate-limiter-flexible": "^9.1.1",
+    "zod": "^4.3.6"
+  }
 }

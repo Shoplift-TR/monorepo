@@ -62,16 +62,16 @@ jobs:
         env:
           STAGING_API_URL: https://shoplift-api-staging.run.app
           
-      - name: Notify Slack — success
+      - name: Notify Slack - success
         if: success()
         run: |
           curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
             -H 'Content-type: application/json' \
-            -d '{"text":"✅ Staging deploy successful — ${{ github.sha }}"}'
+            -d '{"text":"[SUCCESS] Staging deploy successful - ${{ github.sha }}"}'
             
-      - name: Notify Slack — failure
+      - name: Notify Slack - failure
         if: failure()
         run: |
           curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
             -H 'Content-type: application/json' \
-            -d '{"text":"❌ Staging deploy FAILED — ${{ github.sha }} — production gate blocked"}'
+            -d '{"text":"[FAILED] Staging deploy FAILED - ${{ github.sha }} - production gate blocked"}'

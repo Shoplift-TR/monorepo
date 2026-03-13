@@ -48,7 +48,7 @@ async function seed() {
         displayName: user.displayName,
       });
 
-      const claims: any = { role: user.role };
+      const claims: Record<string, string> = { role: user.role };
       if (user.restaurantId) {
         claims.restaurantId = user.restaurantId;
       }
@@ -190,7 +190,7 @@ async function seed() {
 
   // 4. Create 1 Active Promo Code
   await db
-    .collection("promotions")
+    .collection("promos")
     .doc("WELCOME10")
     .set({
       code: "WELCOME10",

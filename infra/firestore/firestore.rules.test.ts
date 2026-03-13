@@ -145,5 +145,57 @@ describe("Firestore Security Rules", () => {
           .set({ name: "Force Update" }),
       );
     });
+
+    // --- Menu Sub-collection Tests ---
+    describe("Menu sub-collection", () => {
+      const activeMenuPath = `${activeRestaurantPath}/menu/item1`;
+      const inactiveMenuPath = `${inactiveRestaurantPath}/menu/item1`;
+
+      it("allows anyone to read menu of an active restaurant", async () => {
+        const publicUser = testEnv.unauthenticatedContext();
+        await assertSucceeds(publicUser.firestore().doc(activeMenuPath).get());
+      });
+
+      it("denies anyone from reading menu of an inactive restaurant", async () => {
+        const publicUser = testEnv.unauthenticatedContext();
+        await assertFails(publicUser.firestore().doc(inactiveMenuPath).get());
+      });
+
+      it("allows restaurant_admin to write to their own restaurant's menu", async () => {
+        const restAdmin = testEnv.authenticatedContext("admin_123", {
+          role: "restaurant_admin",
+          restaurantId: "rest_active",
+        });
+        await assertSucceeds(
+          restAdmin.firestore().doc(activeMenuPath).set({ name: "Burger" }),
+        );
+      });
+
+      it("denies restaurant_admin from writing to another restaurant's menu", async () => {
+        const restAdmin = testEnv.authenticatedContext("admin_123", {
+          role: "restaurant_admin",
+          restaurantId: "rest_active",
+        });
+        await assertFails(
+          restAdmin.firestore().doc(inactiveMenuPath).set({ name: "Burger" }),
+        );
+      });
+
+      it("allows super_admin to read menu of an inactive restaurant", async () => {
+        const admin = testEnv.authenticatedContext("admin", {
+          role: "super_admin",
+        });
+        await assertSucceeds(admin.firestore().doc(inactiveMenuPath).get());
+      });
+
+      it("allows super_admin to write to any restaurant's menu", async () => {
+        const admin = testEnv.authenticatedContext("admin", {
+          role: "super_admin",
+        });
+        await assertSucceeds(
+          admin.firestore().doc(inactiveMenuPath).set({ name: "Pizza" }),
+        );
+      });
+    });
   });
 });

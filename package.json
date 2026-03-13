@@ -10,8 +10,11 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
+    "test:rules": "firebase emulators:exec --only firestore \"jest infra/firestore\"",
     "lint": "turbo run lint",
-    "prepare": "husky"
+    "prepare": "husky",
+    "emulator": "firebase emulators:start --import=./infra/emulator/seed-data --export-on-exit=./infra/emulator/seed-data",
+    "seed": "npx tsx infra/emulator/seed.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

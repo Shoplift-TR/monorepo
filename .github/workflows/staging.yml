@@ -1,0 +1,77 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build
+        run: npx turbo run build
+        
+      - name: Authenticate to GCP via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+        
+      - name: Build and push API image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/shoplift-staging/shoplift/api:${{ github.sha }} -f apps/api/Dockerfile .
+          docker push us-central1-docker.pkg.dev/shoplift-staging/shoplift/api:${{ github.sha }}
+          
+      - name: Deploy API to Cloud Run
+        run: |
+          gcloud run deploy shoplift-api \
+            --image us-central1-docker.pkg.dev/shoplift-staging/shoplift/api:${{ github.sha }} \
+            --region us-central1 \
+            --project shoplift-staging \
+            --set-secrets="FIREBASE_SERVICE_ACCOUNT_KEY=firebase-service-account-staging:latest" \
+            --set-secrets="IYZICO_API_KEY=iyzico-api-key-staging:latest" \
+            --set-secrets="FLUTTERWAVE_SECRET_KEY=flutterwave-secret-key-staging:latest"
+            
+      - name: Deploy Firebase Rules to Staging
+        run: firebase deploy --only firestore:rules --project shoplift-staging
+        
+      - name: Run smoke tests
+        run: npm run test:smoke
+        env:
+          STAGING_API_URL: https://shoplift-api-staging.run.app
+          
+      - name: Notify Slack — success
+        if: success()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            -d '{"text":"✅ Staging deploy successful — ${{ github.sha }}"}'
+            
+      - name: Notify Slack — failure
+        if: failure()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            -d '{"text":"❌ Staging deploy FAILED — ${{ github.sha }} — production gate blocked"}'

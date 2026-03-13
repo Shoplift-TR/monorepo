@@ -60,6 +60,18 @@ describe("Firestore Security Rules", () => {
       });
       await assertSucceeds(admin.firestore().doc("users/alice").get());
     });
+
+    it("denies a user from writing another user's document", async () => {
+      const alice = testEnv.authenticatedContext("alice");
+      await assertFails(
+        alice.firestore().doc("users/bob").set({ name: "Hacked" }),
+      );
+    });
+
+    it("denies unauthenticated user from reading any user document", async () => {
+      const publicUser = testEnv.unauthenticatedContext();
+      await assertFails(publicUser.firestore().doc("users/alice").get());
+    });
   });
 
   // --- Restaurants Collection Tests ---

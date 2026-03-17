@@ -37,7 +37,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
       schema: {
         body: {
           type: "object",
-          required: ["email", "password", "displayName", "phone", "preferredLanguage"],
+          required: [
+            "email",
+            "password",
+            "displayName",
+            "phone",
+            "preferredLanguage",
+          ],
           properties: {
             email: { type: "string", format: "email" },
             password: { type: "string", minLength: 6 },
@@ -49,7 +55,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { email, password, displayName, phone, preferredLanguage } = request.body;
+      const { email, password, displayName, phone, preferredLanguage } =
+        request.body;
 
       try {
         const userRecord = await auth.createUser({
@@ -84,9 +91,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       } catch (error: any) {
         request.log.error(error);
-        return reply.status(400).send({ error: error.message || "Failed to register" });
+        return reply
+          .status(400)
+          .send({ error: error.message || "Failed to register" });
       }
-    }
+    },
   );
 
   // POST /auth/login
@@ -107,30 +116,34 @@ export default async function authRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { email, password } = request.body;
       const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-      const apiKey = emulatorHost ? "fake-api-key" : process.env.FIREBASE_WEB_API_KEY;
+      const apiKey = process.env.FIREBASE_WEB_API_KEY;
+
+      const baseUrl = emulatorHost
+        ? `http://${emulatorHost}/identitytoolkit.googleapis.com/v1`
+        : `https://identitytoolkit.googleapis.com/v1`;
+      const loginUrl = `${baseUrl}/accounts:signInWithPassword?key=${emulatorHost ? "fake-api-key" : apiKey}`;
 
       if (!apiKey && !emulatorHost) {
-        return reply.status(500).send({ error: "Server configuration error: FIREBASE_WEB_API_KEY missing" });
+        return reply
+          .status(500)
+          .send({
+            error: "Server configuration error: FIREBASE_WEB_API_KEY missing",
+          });
       }
 
       try {
-        const baseUrl = emulatorHost 
-          ? `http://${emulatorHost}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword`
-          : "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
+        const response = await fetch(loginUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, returnSecureToken: true }),
+        });
 
-        const response = await fetch(
-          `${baseUrl}?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, returnSecureToken: true }),
-          }
-        );
-
-        const data = await response.json() as any;
+        const data = (await response.json()) as any;
 
         if (!response.ok) {
-          return reply.status(401).send({ error: data.error?.message || "Invalid credentials" });
+          return reply
+            .status(401)
+            .send({ error: data.error?.message || "Invalid credentials" });
         }
 
         return reply.send({
@@ -142,7 +155,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply.status(500).send({ error: "Login failed" });
       }
-    }
+    },
   );
 
   // POST /auth/otp/send
@@ -164,7 +177,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       request.log.info({ phone }, "OTP sent to phone");
       // TODO: Integrate Twilio API to actually send OTP
       return reply.send({ success: true, message: "OTP sent (stubbed)" });
-    }
+    },
   );
 
   // POST /auth/otp/verify
@@ -186,7 +199,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const { phone, otp } = request.body;
       request.log.info({ phone, otp }, "OTP verified");
       return reply.send({ success: true, message: "OTP verified (stubbed)" });
-    }
+    },
   );
 
   // POST /auth/refresh
@@ -206,30 +219,36 @@ export default async function authRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { refreshToken } = request.body;
       const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-      const apiKey = emulatorHost ? "fake-api-key" : process.env.FIREBASE_WEB_API_KEY;
+      const apiKey = process.env.FIREBASE_WEB_API_KEY;
+
+      const refreshUrl = emulatorHost
+        ? `http://${emulatorHost}/securetoken.googleapis.com/v1/token?key=fake-api-key`
+        : `https://securetoken.googleapis.com/v1/token?key=${apiKey}`;
 
       if (!apiKey && !emulatorHost) {
-        return reply.status(500).send({ error: "Server configuration error: FIREBASE_WEB_API_KEY missing" });
+        return reply
+          .status(500)
+          .send({
+            error: "Server configuration error: FIREBASE_WEB_API_KEY missing",
+          });
       }
 
       try {
-        const baseUrl = emulatorHost
-          ? `http://${emulatorHost}/securetoken.googleapis.com/v1/token`
-          : "https://securetoken.googleapis.com/v1/token";
+        const response = await fetch(refreshUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+          }),
+        });
 
-        const response = await fetch(
-          `${baseUrl}?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ grant_type: "refresh_token", refresh_token: refreshToken }),
-          }
-        );
-
-        const data = await response.json() as any;
+        const data = (await response.json()) as any;
 
         if (!response.ok) {
-          return reply.status(401).send({ error: data.error?.message || "Invalid refresh token" });
+          return reply
+            .status(401)
+            .send({ error: data.error?.message || "Invalid refresh token" });
         }
 
         return reply.send({
@@ -240,7 +259,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply.status(500).send({ error: "Refresh failed" });
       }
-    }
+    },
   );
 
   // DELETE /auth/logout
@@ -261,6 +280,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply.status(500).send({ error: "Logout failed" });
       }
-    }
+    },
   );
 }

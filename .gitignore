@@ -75,6 +75,18 @@ service-account*.json
 *-service-account.json
 
 .agent
+.husky
 personal/
 
 infra/firestore/firestore.rules
+
+#Dataconnect
+dataconnect/
+src/dataconnect-generated
+apps/web/src/dataconnect-generated
+apps/api/src/dataconnect-generated
+apps/api/src/dataconnect-admin-generated
+packages/types/src/dataconnect-generated
+packages/types/src/dataconnect-admin-generated
+packages/utils/src/dataconnect-generated
+packages/utils/src/dataconnect-admin-generated

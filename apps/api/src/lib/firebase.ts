@@ -2,10 +2,16 @@ import { initializeApp, cert, getApp, getApps, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import dotenv from "dotenv";
+import { resolve } from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+dotenv.config({ path: resolve(__dirname, "../../../../.env") });
 
-const isDev = process.env.NODE_ENV === "development";
+const isDev =
+  process.env.NODE_ENV === "development" ||
+  !!process.env.FIRESTORE_EMULATOR_HOST ||
+  !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
 
 let app: App;
 

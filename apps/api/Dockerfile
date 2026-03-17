@@ -1,29 +1,29 @@
-FROM node:20-alpine
-
+# Stage 1: deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Copy root workspace files
-COPY package*.json ./
-COPY turbo.json ./
+# Copy the root package files
+COPY package.json package-lock.json turbo.json ./
 
-# Copy the api package
-COPY apps/api/package*.json ./apps/api/
-COPY packages/types/package*.json ./packages/types/
-COPY packages/utils/package*.json ./packages/utils/
+# Copy local package dependencies
+COPY packages/types/package.json ./packages/types/package.json
+COPY apps/api/package.json ./apps/api/package.json
 
-# Install dependencies
-RUN npm install
+# Install dependencies including workspace deps
+RUN npm install --legacy-peer-deps
 
-# Copy source
-COPY apps/api ./apps/api
-COPY packages/types ./packages/types
-COPY packages/utils ./packages/utils
+# Stage 2: dev
+FROM node:20-alpine AS dev
+WORKDIR /app
 
-# Build
-RUN npm run build --workspace=apps/api
+# Copy everything from deps stage
+COPY --from=deps /app /app
 
-WORKDIR /app/apps/api
+# Copy all source files
+COPY . .
 
+# Expose port 3001
 EXPOSE 3001
 
-CMD ["node", "dist/index.js"]
+# Set CMD
+CMD ["npm", "run", "dev"]

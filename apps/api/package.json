@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec ts-node-esm src/index.ts",
+    "dev": "nodemon --watch src --ext ts --exec tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
@@ -24,16 +24,17 @@
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@shoplift/types": "*",
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
-    "fastify-raw-body": "^5.0.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@shoplift/types": "*",
     "dotenv": "^17.3.1",
     "fastify": "^5.8.2",
+    "fastify-raw-body": "^5.0.0",
     "firebase-admin": "^13.7.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",

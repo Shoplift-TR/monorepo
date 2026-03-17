@@ -1,0 +1,12 @@
+{
+  "nav": {
+    "home": "Anasayfa",
+    "restaurants": "Restoranlar",
+    "orders": "Siparişlerim"
+  },
+  "auth": {
+    "login": "Giriş Yap",
+    "register": "Kayıt Ol",
+    "logout": "Çıkış Yap"
+  }
+}

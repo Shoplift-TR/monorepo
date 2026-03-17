@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "shoplift-prod-1",
+    "default": "shoplift-dev-1",
     "dev": "shoplift-dev-1",
     "staging": "shoplift-staging-1",
     "prod": "shoplift-prod-1"

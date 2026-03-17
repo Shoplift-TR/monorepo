@@ -2,8 +2,9 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rawBody from "fastify-raw-body";
+import cookie from "@fastify/cookie";
 import { rateLimiterPlugin } from "./middleware/rateLimiter.js";
-import { auth } from "./lib/firebase.js";
+import { supabase } from "./lib/supabase.js";
 import { registerRoutes } from "./routes/index.js";
 import { ApiResponse } from "@shoplift/types";
 
@@ -31,15 +32,26 @@ await server.register(cors, {
 
 await server.register(helmet);
 
+await server.register(cookie);
+
 // Global Authentication Hook (Populates request.user if token is present)
 // This is required for the rate limiter to identify users on campus networks.
 server.addHook("onRequest", async (request) => {
   const authHeader = request.headers.authorization;
+  let token: string | undefined;
+
   if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.split("Bearer ")[1];
+    token = authHeader.split("Bearer ")[1];
+  } else if (request.cookies.token) {
+    token = request.cookies.token;
+  }
+
+  if (token) {
     try {
-      const decodedToken = await auth.verifyIdToken(token);
-      request.user = decodedToken;
+      const { data } = await supabase.auth.getUser(token);
+      if (data.user) {
+        request.user = data.user;
+      }
     } catch (_error) {
       // Ignore token errors here; protected routes will handle it in preHandler
     }

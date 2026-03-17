@@ -6,3 +6,5 @@ dist
 .git
 .turbo
 *.log
+
+dataconnect/

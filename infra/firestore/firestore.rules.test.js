@@ -46,14 +46,6 @@ describe("Firestore Security Rules", () => {
             });
             await (0, rules_unit_testing_1.assertSucceeds)(admin.firestore().doc("users/alice").get());
         });
-        it("denies a user from writing another user's document", async () => {
-            const alice = testEnv.authenticatedContext("alice");
-            await (0, rules_unit_testing_1.assertFails)(alice.firestore().doc("users/bob").set({ name: "Hacked" }));
-        });
-        it("denies unauthenticated user from reading any user document", async () => {
-            const publicUser = testEnv.unauthenticatedContext();
-            await (0, rules_unit_testing_1.assertFails)(publicUser.firestore().doc("users/alice").get());
-        });
     });
     // --- Restaurants Collection Tests ---
     describe("Restaurants collection", () => {

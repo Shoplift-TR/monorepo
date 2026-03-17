@@ -1,35 +1,11 @@
 import { FastifyInstance } from "fastify";
-import { ApiResponse, Restaurant } from "@shoplift/types";
 import { supabase } from "../lib/supabase.js";
-
-/**
- * Utility to calculate distance between two coordinates in Kilometers
- * (Haversine formula — used for in-memory proximity filter at pilot scale)
- */
-function getDistanceKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 interface RestaurantsQuery {
   lat?: number;
   lng?: number;
-  radiusKm?: number;
-  cuisine?: string | string[];
+  radius?: number;
+  cuisine?: string;
 }
 
 export default async function restaurantRoutes(fastify: FastifyInstance) {
@@ -37,7 +13,7 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
    * GET /restaurants
    * Returns a list of active restaurants, optionally filtered by proximity and cuisine.
    */
-  fastify.get(
+  fastify.get<{ Querystring: RestaurantsQuery }>(
     "/",
     {
       schema: {
@@ -46,98 +22,124 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
           properties: {
             lat: { type: "number" },
             lng: { type: "number" },
-            radiusKm: { type: "number", default: 10 },
-            cuisine: {
-              oneOf: [
-                { type: "string" },
-                { type: "array", items: { type: "string" } },
-              ],
-            },
+            radius: { type: "number", default: 5000 },
+            cuisine: { type: "string" },
           },
         },
       },
     },
     async (request, reply) => {
-      const { lat, lng, radiusKm, cuisine } = request.query as RestaurantsQuery;
+      const { lat, lng, radius, cuisine } = request.query;
 
       try {
-        let query = supabase
-          .from("restaurants")
-          .select("*")
-          .eq("is_active", true);
-
-        // Filter by cuisine tags if provided
-        if (cuisine) {
-          const cuisineArray = Array.isArray(cuisine)
-            ? cuisine
-            : cuisine.split(",").map((c: string) => c.trim());
-
-          if (cuisineArray.length > 0) {
-            // PostGIS cuisine_tags is text[], use overlaps operator
-            query = query.overlaps("cuisine_tags", cuisineArray);
-          }
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          throw error;
-        }
-
-        let restaurants: Restaurant[] = (data ?? []).map((row: any) => ({
-          id: row.id,
-          name: row.name,
-          description: row.description,
-          logo: row.logo_url,
-          address: row.address,
-          location: row.location,
-          operatingHours: row.operating_hours,
-          cuisineTags: row.cuisine_tags,
-          isActive: row.is_active,
-          commissionRate: row.commission_rate,
-          rating: row.rating,
-          totalOrders: row.total_orders,
-        }));
-
-        // Apply proximity filter in memory at pilot scale.
-        // TODO: Replace with PostGIS ST_DWithin query when restaurant count grows.
         if (typeof lat === "number" && typeof lng === "number") {
-          restaurants = restaurants.filter((restaurant) => {
-            const distance = getDistanceKm(
-              lat,
-              lng,
-              restaurant.location.lat,
-              restaurant.location.lng,
-            );
-            return distance <= (radiusKm ?? 10);
+          // Use RPC for proximity search
+          const { data, error } = await supabase.rpc("get_restaurants_near", {
+            lat,
+            lng,
+            radius_meters: radius ?? 5000,
+            cuisine_filter: cuisine || null,
           });
+
+          if (error) throw error;
+          return reply.send({ success: true, data });
+        } else {
+          // Standard query with optional cuisine filter
+          let query = supabase
+            .from("restaurants")
+            .select("*")
+            .eq("is_active", true)
+            .eq("is_approved", true)
+            .order("rating", { ascending: false });
+
+          if (cuisine) {
+            query = query.contains("cuisine_tags", [cuisine]);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          return reply.send({ success: true, data });
         }
-
-        const response: ApiResponse<Restaurant[]> = {
-          success: true,
-          data: restaurants,
-          error: null,
-        };
-
-        return response;
-      } catch (error) {
+      } catch (error: any) {
         request.log.error(error);
-        const errorResponse: ApiResponse<null> = {
+        return reply.status(500).send({
           success: false,
-          data: null,
-          error: "Failed to fetch restaurants",
-        };
-        return reply.status(500).send(errorResponse);
+          error: error.message || "Failed to fetch restaurants",
+        });
       }
     },
   );
 
-  fastify.get("/:id", async (_request, _reply) => {
-    const response: ApiResponse<null> = {
-      success: false,
-      data: null,
-      error: "Not Implemented",
-    };
-    return response;
+  /**
+   * GET /restaurants/:id
+   */
+  fastify.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
+    const { id } = request.params;
+
+    try {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("id", id)
+        .eq("is_active", true)
+        .single();
+
+      if (error || !data) {
+        return reply
+          .status(404)
+          .send({ success: false, error: "Restaurant not found" });
+      }
+
+      return reply.send({ success: true, data });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: error.message || "Failed to fetch restaurant",
+      });
+    }
   });
+
+  /**
+   * GET /restaurants/:id/menu
+   */
+  fastify.get<{ Params: { id: string } }>(
+    "/:id/menu",
+    async (request, reply) => {
+      const { id } = request.params;
+
+      try {
+        const { data, error } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("restaurant_id", id)
+          .eq("is_available", true)
+          .order("display_order", { ascending: true });
+
+        if (error) throw error;
+
+        // Group by category
+        const categories: Record<string, any[]> = {};
+        data.forEach((item) => {
+          const cat = item.category || "General";
+          if (!categories[cat]) {
+            categories[cat] = [];
+          }
+          categories[cat].push(item);
+        });
+
+        return reply.send({
+          success: true,
+          data: { categories },
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to fetch menu items",
+        });
+      }
+    },
+  );
 }

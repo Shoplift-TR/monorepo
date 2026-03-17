@@ -7,16 +7,52 @@ services:
       - ./apps/api/src:/app/apps/api/src
     env_file:
       - .env
+    environment:
+      - NODE_ENV=development
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+      - FIRESTORE_EMULATOR_HOST=firebase-emulator:8080
     ports:
       - "3001:3001"
     depends_on:
-      - n8n
+      firebase-emulator:
+        condition: service_healthy
+    networks:
+      - shoplift
+
+  firebase-emulator:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./firebase.json:/app/firebase.json
+      - ./firestore.rules:/app/firestore.rules
+      - ./firestore.indexes.json:/app/firestore.indexes.json
+      - firebase-emulator-data:/app/.firebase
+    environment:
+      - FIREBASE_TOKEN=unused
+    command: >
+      sh -c "npm install -g firebase-tools@13.29.1 &&
+             firebase emulators:start --only auth,firestore
+             --project shoplift-dev-1"
+    ports:
+      - "9099:9099"
+      - "8080:8080"
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9099/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     networks:
       - shoplift
 
   n8n:
     image: n8nio/n8n:latest
     restart: always
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n-data:/home/node/.n8n
     networks:
       - shoplift
 
@@ -24,11 +60,15 @@ services:
     image: mailhog/mailhog:latest
     restart: always
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - shoplift
 
 networks:
   shoplift:
     driver: bridge
+
+volumes:
+  firebase-emulator-data:
+  n8n-data:

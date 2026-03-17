@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { auth, db } from "../lib/firebase.js";
-import { Timestamp } from "firebase-admin/firestore";
+import { supabase } from "../lib/supabase.js";
 import { verifyAuth } from "../middleware/auth.js";
 
 interface RegisterBody {
@@ -59,33 +58,42 @@ export default async function authRoutes(fastify: FastifyInstance) {
         request.body;
 
       try {
-        const userRecord = await auth.createUser({
-          email,
-          password,
-          displayName,
-          phoneNumber: phone,
-        });
+        const { data: authData, error: authError } =
+          await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: {
+              display_name: displayName,
+              preferred_language: preferredLanguage,
+              phone,
+            },
+          });
 
-        await auth.setCustomUserClaims(userRecord.uid, { role: "customer" });
+        if (authError || !authData.user) {
+          request.log.error({ authError }, "Supabase register error");
+          return reply.status(400).send({
+            error: authError?.message || "Failed to register",
+            code: authError?.code,
+            status: authError?.status,
+          });
+        }
 
-        const userData = {
-          uid: userRecord.uid,
-          email,
-          phone,
-          displayName,
-          preferredLanguage,
-          role: "customer",
-          createdAt: Timestamp.now(),
-          savedAddresses: [],
-          paymentMethodTokens: [],
-          usedPromos: [],
-          lastOrderAt: null,
-        };
+        const user = authData.user;
 
-        await db.collection("users").doc(userRecord.uid).set(userData);
+        // Profile row is created automatically via the trigger.
+        // Update the phone specifically as requested.
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ phone })
+          .eq("id", user.id);
+
+        if (profileError) {
+          request.log.warn({ profileError }, "Profile phone update failed");
+        }
 
         return reply.status(201).send({
-          uid: userRecord.uid,
+          uid: user.id,
           email,
           displayName,
         });
@@ -115,41 +123,29 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { email, password } = request.body;
-      const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-      const apiKey = process.env.FIREBASE_WEB_API_KEY;
-
-      const baseUrl = emulatorHost
-        ? `http://${emulatorHost}/identitytoolkit.googleapis.com/v1`
-        : `https://identitytoolkit.googleapis.com/v1`;
-      const loginUrl = `${baseUrl}/accounts:signInWithPassword?key=${emulatorHost ? "fake-api-key" : apiKey}`;
-
-      if (!apiKey && !emulatorHost) {
-        return reply
-          .status(500)
-          .send({
-            error: "Server configuration error: FIREBASE_WEB_API_KEY missing",
-          });
-      }
 
       try {
-        const response = await fetch(loginUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, returnSecureToken: true }),
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         });
 
-        const data = (await response.json()) as any;
-
-        if (!response.ok) {
+        if (error || !data.user || !data.session) {
           return reply
             .status(401)
-            .send({ error: data.error?.message || "Invalid credentials" });
+            .send({ error: error?.message || "Invalid credentials" });
         }
 
+        reply.setCookie("token", data.session.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/",
+          maxAge: 3600,
+        });
+
         return reply.send({
-          token: data.idToken,
-          refreshToken: data.refreshToken,
-          uid: data.localId,
+          uid: data.user.id,
         });
       } catch (error: any) {
         request.log.error(error);
@@ -175,7 +171,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { phone } = request.body;
       request.log.info({ phone }, "OTP sent to phone");
-      // TODO: Integrate Twilio API to actually send OTP
       return reply.send({ success: true, message: "OTP sent (stubbed)" });
     },
   );
@@ -218,42 +213,28 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { refreshToken } = request.body;
-      const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-      const apiKey = process.env.FIREBASE_WEB_API_KEY;
-
-      const refreshUrl = emulatorHost
-        ? `http://${emulatorHost}/securetoken.googleapis.com/v1/token?key=fake-api-key`
-        : `https://securetoken.googleapis.com/v1/token?key=${apiKey}`;
-
-      if (!apiKey && !emulatorHost) {
-        return reply
-          .status(500)
-          .send({
-            error: "Server configuration error: FIREBASE_WEB_API_KEY missing",
-          });
-      }
 
       try {
-        const response = await fetch(refreshUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            grant_type: "refresh_token",
-            refresh_token: refreshToken,
-          }),
+        const { data, error } = await supabase.auth.refreshSession({
+          refresh_token: refreshToken,
         });
 
-        const data = (await response.json()) as any;
-
-        if (!response.ok) {
+        if (error || !data.session) {
           return reply
             .status(401)
-            .send({ error: data.error?.message || "Invalid refresh token" });
+            .send({ error: error?.message || "Invalid refresh token" });
         }
 
+        reply.setCookie("token", data.session.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/",
+          maxAge: 3600,
+        });
+
         return reply.send({
-          token: data.id_token,
-          refreshToken: data.refresh_token,
+          success: true,
         });
       } catch (error: any) {
         request.log.error(error);
@@ -270,11 +251,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const user = request.user as { uid: string };
-        if (!user || !user.uid) {
-          return reply.status(401).send({ error: "Unauthorized" });
+        if (request.user?.uid) {
+          await supabase.auth.admin.signOut(request.user.uid);
         }
-        await auth.revokeRefreshTokens(user.uid);
+        reply.clearCookie("token", { path: "/" });
         return reply.send({ success: true });
       } catch (error: any) {
         request.log.error(error);

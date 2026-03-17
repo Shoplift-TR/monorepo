@@ -1,10 +1,10 @@
 import { FastifyInstance } from "fastify";
 import { ApiResponse, Restaurant } from "@shoplift/types";
-import { db } from "../lib/firebase.js";
+import { supabase } from "../lib/supabase.js";
 
 /**
  * Utility to calculate distance between two coordinates in Kilometers
- * (Haversine formula)
+ * (Haversine formula — used for in-memory proximity filter at pilot scale)
  */
 function getDistanceKm(
   lat1: number,
@@ -61,42 +61,46 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
       const { lat, lng, radiusKm, cuisine } = request.query as RestaurantsQuery;
 
       try {
-        let query: FirebaseFirestore.Query = db
-          .collection("restaurants")
-          .where("isActive", "==", true);
+        let query = supabase
+          .from("restaurants")
+          .select("*")
+          .eq("is_active", true);
 
-        // Filter by cuisine if provided
+        // Filter by cuisine tags if provided
         if (cuisine) {
           const cuisineArray = Array.isArray(cuisine)
             ? cuisine
             : cuisine.split(",").map((c: string) => c.trim());
 
           if (cuisineArray.length > 0) {
-            query = query.where(
-              "cuisineTags",
-              "array-contains-any",
-              cuisineArray,
-            );
+            // PostGIS cuisine_tags is text[], use overlaps operator
+            query = query.overlaps("cuisine_tags", cuisineArray);
           }
         }
 
-        const snapshot = await query.get();
-        let restaurants: Restaurant[] = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            location: {
-              lat: data.location.latitude,
-              lng: data.location.longitude,
-            },
-          } as Restaurant;
-        });
+        const { data, error } = await query;
 
-        // Apply GeoPoint proximity filter if coordinates are provided
-        // TODO: Replace with Firestore GeoPoint query using geohashing
-        // (e.g. geofire-common) when restaurant count grows beyond ~100.
-        // For pilot scale, in-memory filtering is acceptable.
+        if (error) {
+          throw error;
+        }
+
+        let restaurants: Restaurant[] = (data ?? []).map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          logo: row.logo_url,
+          address: row.address,
+          location: row.location,
+          operatingHours: row.operating_hours,
+          cuisineTags: row.cuisine_tags,
+          isActive: row.is_active,
+          commissionRate: row.commission_rate,
+          rating: row.rating,
+          totalOrders: row.total_orders,
+        }));
+
+        // Apply proximity filter in memory at pilot scale.
+        // TODO: Replace with PostGIS ST_DWithin query when restaurant count grows.
         if (typeof lat === "number" && typeof lng === "number") {
           restaurants = restaurants.filter((restaurant) => {
             const distance = getDistanceKm(

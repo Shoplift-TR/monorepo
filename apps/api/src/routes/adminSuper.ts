@@ -36,7 +36,7 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
             supabase
               .from("orders")
               .select(
-                "id, restaurant_name, customer_name, total, status, created_at",
+                "id, restaurantName:restaurant_name, customerName:customer_name, total, status, createdAt:created_at",
               )
               .order("created_at", { ascending: false })
               .limit(limit),

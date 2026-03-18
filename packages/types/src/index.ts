@@ -57,6 +57,8 @@ export interface Order {
   createdAt: string;
   confirmedAt: string | null;
   deliveredAt: string | null;
+  customerName?: string;
+  restaurantName?: string;
 }
 
 export interface Restaurant {
@@ -181,4 +183,48 @@ export interface OnboardRestaurantBody {
 export interface RefundBody {
   order_id: string;
   reason: string;
+}
+
+export interface TrackingOverview {
+  orderId: string;
+  status: string;
+  estimatedDeliveryTime: string | null;
+  driverId: string | null;
+  restaurantName: string | null;
+  deliveryAddressSnapshot: object;
+  createdAt: string;
+  confirmedAt: string | null;
+  deliveredAt: string | null;
+}
+
+export interface TrackingRoute {
+  waypoints: { lat: number; lng: number; label?: string }[] | null;
+  totalPoints?: number;
+  message?: string;
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderRole: "customer" | "restaurant_admin" | "super_admin" | "ai";
+  body: string;
+  createdAt: string;
+}
+
+export interface CreateTicketBody {
+  orderId?: string;
+  restaurantId?: string;
+  issueType: "wrong_item" | "late_delivery" | "payment" | "other";
+  message: string;
+}
+
+export interface UpdateTicketStatusBody {
+  status:
+    | "open"
+    | "auto_resolved"
+    | "pending_human"
+    | "ai_responded"
+    | "resolved"
+    | "escalated";
 }

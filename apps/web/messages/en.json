@@ -7,6 +7,33 @@
   "auth": {
     "login": "Login",
     "register": "Register",
-    "logout": "Logout"
+    "logout": "Logout",
+    "email": "Email Address",
+    "password": "Password",
+    "displayName": "Full Name",
+    "phone": "Phone Number",
+    "preferredLanguage": "Preferred Language",
+    "turkish": "Turkish",
+    "english": "English",
+    "dontHaveAccount": "Don't have an account? Register",
+    "alreadyHaveAccount": "Already have an account? Login",
+    "loginError": "Invalid credentials or login failed.",
+    "registerError": "Registration failed. Please check your details."
+  },
+  "restaurants": {
+    "searchPlaceholder": "Search for restaurants and shops",
+    "freeDelivery": "Free",
+    "minOrder": "{amount} minimum",
+    "noRestaurants": "No restaurants found in this area.",
+    "addToCart": "Add {price}",
+    "viewCart": "View Cart",
+    "total": "Total",
+    "clearCartTitle": "Start new cart?",
+    "clearCartMessage": "You already have items from another restaurant. Do you want to clear your cart and start a new order?",
+    "clearCartConfirm": "Start New Cart",
+    "cancel": "Cancel",
+    "required": "Required",
+    "optional": "Optional",
+    "maxSelections": "Max {max}"
   }
 }

@@ -7,6 +7,33 @@
   "auth": {
     "login": "Giriş Yap",
     "register": "Kayıt Ol",
-    "logout": "Çıkış Yap"
+    "logout": "Çıkış Yap",
+    "email": "E-posta Adresi",
+    "password": "Şifre",
+    "displayName": "Ad Soyad",
+    "phone": "Telefon Numarası",
+    "preferredLanguage": "Tercih Edilen Dil",
+    "turkish": "Türkçe",
+    "english": "İngilizce",
+    "dontHaveAccount": "Hesabınız yok mu? Kayıt Ol",
+    "alreadyHaveAccount": "Zaten hesabınız var mı? Giriş Yap",
+    "loginError": "Giriş başarısız. Bilgilerinizi kontrol edin.",
+    "registerError": "Kayıt başarısız. Lütfen bilgilerinizi kontrol edin."
+  },
+  "restaurants": {
+    "searchPlaceholder": "Restoran ve market arayın",
+    "freeDelivery": "Ücretsiz",
+    "minOrder": "Min. {amount}",
+    "noRestaurants": "Bu bölgede restoran bulunamadı.",
+    "addToCart": "Sepete Ekle {price}",
+    "viewCart": "Sepeti Görüntüle",
+    "total": "Toplam",
+    "clearCartTitle": "Yeni sepet oluşturulsun mu?",
+    "clearCartMessage": "Sepetinizde başka bir restorandan ürünler var. Sepetinizi temizleyip yeni bir siparişe başlamak ister misiniz?",
+    "clearCartConfirm": "Yeni Sepet Oluştur",
+    "cancel": "İptal",
+    "required": "Zorunlu",
+    "optional": "İsteğe Bağlı",
+    "maxSelections": "Maks {max}"
   }
 }

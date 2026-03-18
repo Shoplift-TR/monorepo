@@ -3,6 +3,7 @@ import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CartProvider } from "@/contexts/CartContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -45,18 +46,22 @@ export default async function RootLayout({
       >
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
-            <header className="fixed top-0 w-full p-4 flex justify-between items-center bg-white/80 backdrop-blur-md z-10 border-b">
-              <div className="font-bold text-xl tracking-tighter">SHOPLIFT</div>
-              <nav className="flex gap-4 items-center">
-                <a
-                  href={`/${locale === "en" ? "tr" : "en"}`}
-                  className="text-sm font-medium px-3 py-1 rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors uppercase"
-                >
-                  {locale === "en" ? "TR" : "EN"}
-                </a>
-              </nav>
-            </header>
-            <main className="pt-20">{children}</main>
+            <CartProvider>
+              <header className="fixed top-0 w-full p-4 flex justify-between items-center bg-white/80 backdrop-blur-md z-10 border-b">
+                <div className="font-bold text-xl tracking-tighter">
+                  SHOPLIFT
+                </div>
+                <nav className="flex gap-4 items-center">
+                  <a
+                    href={`/${locale === "en" ? "tr" : "en"}`}
+                    className="text-sm font-medium px-3 py-1 rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors uppercase"
+                  >
+                    {locale === "en" ? "TR" : "EN"}
+                  </a>
+                </nav>
+              </header>
+              <main className="pt-20">{children}</main>
+            </CartProvider>
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

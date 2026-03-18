@@ -20,6 +20,8 @@ export const verifyAuth = async (
 
   if (authHeader?.startsWith("Bearer ")) {
     token = authHeader.split("Bearer ")[1];
+  } else if (request.cookies.token) {
+    token = request.cookies.token;
   }
 
   if (!token) {

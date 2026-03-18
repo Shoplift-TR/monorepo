@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@shoplift/types": "*",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.99.1",
     "@tanstack/react-query": "^5.90.21",
     "firebase": "^12.10.0",
@@ -18,8 +20,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.3.6",
-    "zustand": "^5.0.11",
-    "@shoplift/types": "*"
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

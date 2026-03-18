@@ -262,4 +262,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  // GET /auth/me
+  fastify.get(
+    "/me",
+    {
+      preHandler: [verifyAuth],
+    },
+    async (request, reply) => {
+      return reply.send(request.user);
+    },
+  );
 }

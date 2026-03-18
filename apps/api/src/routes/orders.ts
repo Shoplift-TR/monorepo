@@ -91,12 +91,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           !menuItems ||
           menuItems.length !== Array.from(new Set(itemIds)).length
         ) {
-          return reply
-            .status(400)
-            .send({
-              success: false,
-              error: "One or more items are unavailable",
-            });
+          return reply.status(400).send({
+            success: false,
+            error: "One or more items are unavailable",
+          });
         }
 
         // 3. Recompute prices server-side
@@ -139,7 +137,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         // 5. Promo Code logic
         let discount = 0;
         if (promoCode) {
-          const promoResult = await validatePromo(promoCode);
+          const promoResult = await validatePromo({
+            code: promoCode,
+            userId: user.uid,
+            restaurantId,
+            cartTotal: subtotal,
+            cartItemIds: items.map((i) => i.itemId),
+          });
           if (promoResult.valid) {
             discount = promoResult.discount;
           }
@@ -209,12 +213,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         return reply.status(201).send({ success: true, data: order });
       } catch (error: any) {
         request.log.error(error);
-        return reply
-          .status(500)
-          .send({
-            success: false,
-            error: error.message || "Failed to create order",
-          });
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to create order",
+        });
       }
     },
   );
@@ -296,12 +298,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
 
         if (!allowed) {
-          return reply
-            .status(403)
-            .send({
-              success: false,
-              error: "Not authorized to transition to this status",
-            });
+          return reply.status(403).send({
+            success: false,
+            error: "Not authorized to transition to this status",
+          });
         }
 
         const updateData: any = { status: newStatus };
@@ -388,12 +388,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         return reply.send({ success: true, data: updatedOrder });
       } catch (error: any) {
         request.log.error(error);
-        return reply
-          .status(500)
-          .send({
-            success: false,
-            error: error.message || "Failed to update order status",
-          });
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to update order status",
+        });
       }
     },
   );
@@ -423,21 +421,17 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
 
         if (order.customer_id !== user.uid) {
-          return reply
-            .status(403)
-            .send({
-              success: false,
-              error: "Only the customer can cancel their order",
-            });
+          return reply.status(403).send({
+            success: false,
+            error: "Only the customer can cancel their order",
+          });
         }
 
         if (order.status !== "PENDING") {
-          return reply
-            .status(400)
-            .send({
-              success: false,
-              error: "Only PENDING orders can be cancelled",
-            });
+          return reply.status(400).send({
+            success: false,
+            error: "Only PENDING orders can be cancelled",
+          });
         }
 
         const { error: updateError } = await supabase
@@ -488,12 +482,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         return reply.send({ success: true, data: updatedOrder });
       } catch (error: any) {
         request.log.error(error);
-        return reply
-          .status(500)
-          .send({
-            success: false,
-            error: error.message || "Failed to cancel order",
-          });
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to cancel order",
+        });
       }
     },
   );

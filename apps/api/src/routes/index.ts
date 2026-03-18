@@ -6,6 +6,7 @@ import paymentRoutes from "./payments.js";
 import adminRoutes from "./admin.js";
 import supportRoutes from "./support.js";
 import trackingRoutes from "./tracking.js";
+import promoRoutes from "./promos.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(authRoutes, { prefix: "/auth" });
@@ -15,4 +16,5 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(adminRoutes, { prefix: "/admin" });
   await fastify.register(supportRoutes, { prefix: "/support" });
   await fastify.register(trackingRoutes, { prefix: "/tracking" });
+  await fastify.register(promoRoutes, { prefix: "/promos" });
 }

@@ -11,6 +11,8 @@ export const routing = defineRouting({
 export default createMiddleware(routing);
 
 export const config = {
-  // Match only internationalized pathnames
-  matcher: ["/", "/(tr|en)/:path*"],
+  // Match all pathnames except for
+  // - API routes
+  // - Static files (_next, images, favicon)
+  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
 };

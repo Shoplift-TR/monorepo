@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
+  const t = useTranslations("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -37,7 +39,7 @@ export default function LoginPage() {
               </h1>
             </div>
             <span className="px-2 py-0.5 bg-[#E2103C] text-white text-xs font-bold rounded-md uppercase tracking-wider">
-              Admin Portal
+              {t("title")}
             </span>
           </div>
 
@@ -51,7 +53,7 @@ export default function LoginPage() {
             <div>
               <input
                 type="email"
-                placeholder="Admin Email"
+                placeholder={t("email")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -62,7 +64,7 @@ export default function LoginPage() {
             <div>
               <input
                 type="password"
-                placeholder="Password"
+                placeholder={t("password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -82,7 +84,7 @@ export default function LoginPage() {
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
               ) : (
-                "Log In"
+                t("submit")
               )}
             </button>
           </form>

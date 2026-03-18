@@ -3,6 +3,7 @@ declare module "fastify" {
     user?: {
       uid: string;
       email: string;
+      displayName: string;
       role: string;
       restaurantId: string | null;
     };

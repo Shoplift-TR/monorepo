@@ -1,0 +1,12 @@
+{
+  "nav": {
+    "home": "Home",
+    "restaurants": "Restaurants",
+    "orders": "Orders"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout"
+  }
+}

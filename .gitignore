@@ -75,6 +75,13 @@ service-account*.json
 *-service-account.json
 
 .agent
+.husky
 personal/
 
 infra/firestore/firestore.rules
+
+
+#Firebase Console keys
+apps/api/service-account.json
+
+*.sql

@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { ApiResponse, User } from "@shoplift/types";
-import { auth, db } from "../lib/firebase.js";
+import { supabase } from "../lib/supabase.js";
+import { verifyAuth } from "../middleware/auth.js";
 
 interface RegisterBody {
   email: string;
@@ -10,12 +10,27 @@ interface RegisterBody {
   preferredLanguage: "tr" | "en";
 }
 
+interface LoginBody {
+  email: string;
+  password: string;
+}
+
+interface OtpSendBody {
+  phone: string;
+}
+
+interface OtpVerifyBody {
+  phone: string;
+  otp: string;
+}
+
+interface RefreshBody {
+  refreshToken: string;
+}
+
 export default async function authRoutes(fastify: FastifyInstance) {
-  /**
-   * POST /auth/register
-   * Registers a new user with Firebase Auth and initializes their profile in Firestore.
-   */
-  fastify.post(
+  // POST /auth/register
+  fastify.post<{ Body: RegisterBody }>(
     "/register",
     {
       schema: {
@@ -40,79 +55,211 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { email, password, displayName, phone, preferredLanguage } =
-        request.body as RegisterBody;
+        request.body;
 
       try {
-        // 1. Create user in Firebase Auth
-        const userRecord = await auth.createUser({
-          email,
-          password,
-          displayName,
-          phoneNumber: phone,
-        });
+        const { data: authData, error: authError } =
+          await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: {
+              display_name: displayName,
+              preferred_language: preferredLanguage,
+              phone,
+            },
+          });
 
-        // 2. Set custom claims (Role-Based Access Control)
-        // Custom claim structured as customer, matching invariants.md check
-        await auth.setCustomUserClaims(userRecord.uid, { role: "customer" });
-
-        // 3. Create user document in Firestore
-        const userData: User = {
-          uid: userRecord.uid,
-          email,
-          phone,
-          displayName,
-          savedAddresses: [],
-          preferredLanguage,
-          createdAt: new Date().toISOString(),
-        };
-
-        await db.collection("users").doc(userRecord.uid).set(userData);
-
-        // 4. Generate a custom token for the client to sign in immediately
-        const customToken = await auth.createCustomToken(userRecord.uid);
-
-        const response: ApiResponse<{ token: string; user: User }> = {
-          success: true,
-          data: {
-            token: customToken,
-            user: userData,
-          },
-          error: null,
-        };
-
-        return reply.status(201).send(response);
-      } catch (error) {
-        const authError = error as { code?: string; message?: string };
-        request.log.error(authError);
-
-        let errorMessage = "Failed to register user";
-        let statusCode = 500;
-
-        if (authError.code === "auth/email-already-exists") {
-          errorMessage = "This email address is already registered";
-          statusCode = 400;
-        } else if (authError.code === "auth/phone-number-already-exists") {
-          errorMessage = "This phone number is already registered";
-          statusCode = 400;
+        if (authError || !authData.user) {
+          request.log.error({ authError }, "Supabase register error");
+          return reply.status(400).send({
+            error: authError?.message || "Failed to register",
+            code: authError?.code,
+            status: authError?.status,
+          });
         }
 
-        const errorResponse: ApiResponse<null> = {
-          success: false,
-          data: null,
-          error: errorMessage,
-        };
+        const user = authData.user;
 
-        return reply.status(statusCode).send(errorResponse);
+        // Profile row is created automatically via the trigger.
+        // Update the phone specifically as requested.
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ phone })
+          .eq("id", user.id);
+
+        if (profileError) {
+          request.log.warn({ profileError }, "Profile phone update failed");
+        }
+
+        return reply.status(201).send({
+          uid: user.id,
+          email,
+          displayName,
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply
+          .status(400)
+          .send({ error: error.message || "Failed to register" });
       }
     },
   );
 
-  fastify.get("/", async () => {
-    const response: ApiResponse<null> = {
-      success: false,
-      data: null,
-      error: "Not Implemented",
-    };
-    return response;
-  });
+  // POST /auth/login
+  fastify.post<{ Body: LoginBody }>(
+    "/login",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string", format: "email" },
+            password: { type: "string", minLength: 1 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { email, password } = request.body;
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error || !data.user || !data.session) {
+          return reply
+            .status(401)
+            .send({ error: error?.message || "Invalid credentials" });
+        }
+
+        reply.setCookie("token", data.session.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/",
+          maxAge: 3600,
+        });
+
+        return reply.send({
+          uid: data.user.id,
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: "Login failed" });
+      }
+    },
+  );
+
+  // POST /auth/otp/send
+  fastify.post<{ Body: OtpSendBody }>(
+    "/otp/send",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["phone"],
+          properties: {
+            phone: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { phone } = request.body;
+      request.log.info({ phone }, "OTP sent to phone");
+      return reply.send({ success: true, message: "OTP sent (stubbed)" });
+    },
+  );
+
+  // POST /auth/otp/verify
+  fastify.post<{ Body: OtpVerifyBody }>(
+    "/otp/verify",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["phone", "otp"],
+          properties: {
+            phone: { type: "string" },
+            otp: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { phone, otp } = request.body;
+      request.log.info({ phone, otp }, "OTP verified");
+      return reply.send({ success: true, message: "OTP verified (stubbed)" });
+    },
+  );
+
+  // POST /auth/refresh
+  fastify.post<{ Body: RefreshBody }>(
+    "/refresh",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["refreshToken"],
+          properties: {
+            refreshToken: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { refreshToken } = request.body;
+
+      try {
+        const { data, error } = await supabase.auth.refreshSession({
+          refresh_token: refreshToken,
+        });
+
+        if (error || !data.session) {
+          return reply
+            .status(401)
+            .send({ error: error?.message || "Invalid refresh token" });
+        }
+
+        reply.setCookie("token", data.session.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/",
+          maxAge: 3600,
+        });
+
+        return reply.send({
+          success: true,
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: "Refresh failed" });
+      }
+    },
+  );
+
+  // DELETE /auth/logout
+  fastify.delete(
+    "/logout",
+    {
+      preHandler: [verifyAuth],
+    },
+    async (request, reply) => {
+      try {
+        if (request.user?.uid) {
+          await supabase.auth.admin.signOut(request.user.uid);
+        }
+        reply.clearCookie("token", { path: "/" });
+        return reply.send({ success: true });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: "Logout failed" });
+      }
+    },
+  );
 }

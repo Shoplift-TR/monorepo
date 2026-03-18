@@ -35,5 +35,49 @@
     "required": "Required",
     "optional": "Optional",
     "maxSelections": "Max {max}"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "stepAddress": "Address",
+    "stepReview": "Review",
+    "stepConfirm": "Confirm",
+    "savedAddresses": "Saved Addresses",
+    "addNewAddress": "Add New Address",
+    "label": "Address Label (home, office, etc.)",
+    "street": "Street",
+    "district": "District",
+    "city": "City",
+    "saveAddress": "Save Address",
+    "orderSummary": "Order Summary",
+    "subtotal": "Subtotal",
+    "deliveryFee": "Delivery Fee",
+    "discount": "Discount",
+    "total": "Total",
+    "promoCode": "Promo Code",
+    "apply": "Apply",
+    "paymentMethod": "Payment Method",
+    "card": "Card (simulated)",
+    "cash": "Cash on Delivery",
+    "placeOrder": "Place Order",
+    "invalidPromo": "Invalid promo code",
+    "promoApplied": "Promo applied",
+    "emptyCart": "Your cart is empty."
+  },
+  "orderDetail": {
+    "title": "Order Tracking",
+    "status": {
+      "PENDING": "Pending",
+      "CONFIRMED": "Confirmed",
+      "PREPARING": "Preparing",
+      "READY_FOR_PICKUP": "Ready for Pickup",
+      "OUT_FOR_DELIVERY": "Out for Delivery",
+      "DELIVERED": "Delivered",
+      "CANCELLED": "Cancelled"
+    },
+    "liveTracking": "Live tracking — coming soon",
+    "onTheWay": "Driver is on the way!",
+    "cancelOrder": "Cancel Order",
+    "cancelSuccess": "Order cancelled.",
+    "summary": "Order Summary"
   }
 }

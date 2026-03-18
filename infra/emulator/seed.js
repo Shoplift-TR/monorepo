@@ -100,11 +100,36 @@ async function seed() {
         console.log(`Created restaurant: ${id} (Active: ${data.isActive})`);
         // Add 5 menu items across 2 categories
         const menuItems = [
-            { id: "item1", name: { en: "Classic Burger", tr: "Klasik Burger" }, price: 150, category: "Mains" },
-            { id: "item2", name: { en: "Cheeseburger", tr: "Çizburger" }, price: 180, category: "Mains" },
-            { id: "item3", name: { en: "Double Burger", tr: "Duble Burger" }, price: 250, category: "Mains" },
-            { id: "item4", name: { en: "Fries", tr: "Patates Kızartması" }, price: 60, category: "Sides" },
-            { id: "item5", name: { en: "Onion Rings", tr: "Soğan Halkası" }, price: 70, category: "Sides" },
+            {
+                id: "item1",
+                name: { en: "Classic Burger", tr: "Klasik Burger" },
+                price: 150,
+                category: "Mains",
+            },
+            {
+                id: "item2",
+                name: { en: "Cheeseburger", tr: "Çizburger" },
+                price: 180,
+                category: "Mains",
+            },
+            {
+                id: "item3",
+                name: { en: "Double Burger", tr: "Duble Burger" },
+                price: 250,
+                category: "Mains",
+            },
+            {
+                id: "item4",
+                name: { en: "Fries", tr: "Patates Kızartması" },
+                price: 60,
+                category: "Sides",
+            },
+            {
+                id: "item5",
+                name: { en: "Onion Rings", tr: "Soğan Halkası" },
+                price: 70,
+                category: "Sides",
+            },
         ];
         for (const item of menuItems) {
             await db.collection(`restaurants/${id}/menu`).doc(item.id).set({
@@ -152,7 +177,10 @@ async function seed() {
         console.log(`Created order: ${order.id} (${order.status})`);
     }
     // 4. Create 1 Active Promo Code
-    await db.collection("promotions").doc("WELCOME10").set({
+    await db
+        .collection("promos")
+        .doc("WELCOME10")
+        .set({
         code: "WELCOME10",
         type: "percent",
         value: 10,

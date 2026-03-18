@@ -1,0 +1,20 @@
+{
+  "login": {
+    "title": "Yönetici Portalı",
+    "email": "E-posta",
+    "password": "Şifre",
+    "submit": "Giriş Yap"
+  },
+  "sidebar": {
+    "orders": "Siparişler",
+    "menu": "Menü ve Envanter",
+    "analytics": "Analitik",
+    "overview": "Genel Bakış",
+    "restaurants": "Restoranlar",
+    "users": "Kullanıcılar",
+    "refunds": "İadeler",
+    "audit": "Denetim Kaydı",
+    "inventory": "Envanter",
+    "logout": "Çıkış Yap"
+  }
+}

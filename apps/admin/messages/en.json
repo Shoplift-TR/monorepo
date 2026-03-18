@@ -1,0 +1,20 @@
+{
+  "login": {
+    "title": "Admin Portal",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Log In"
+  },
+  "sidebar": {
+    "orders": "Orders",
+    "menu": "Menu & Inventory",
+    "analytics": "Analytics",
+    "overview": "Overview",
+    "restaurants": "Restaurants",
+    "users": "Users",
+    "refunds": "Refunds",
+    "audit": "Audit Log",
+    "inventory": "Inventory",
+    "logout": "Logout"
+  }
+}

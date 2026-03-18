@@ -8,10 +8,12 @@ import restaurantAdminRoutes from "./admin/restaurant.js";
 import supportRoutes from "./supportTickets.js";
 import trackingRoutes from "./tracking.js";
 import promoRoutes from "./promos.js";
+import addressRoutes from "./addresses.js";
 import adminSuperRoutes from "./adminSuper.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(authRoutes, { prefix: "/auth" });
+  await fastify.register(addressRoutes, { prefix: "/addresses" });
   await fastify.register(restaurantRoutes, { prefix: "/restaurants" });
   await fastify.register(orderRoutes, { prefix: "/orders" });
   await fastify.register(paymentRoutes, { prefix: "/payments" });

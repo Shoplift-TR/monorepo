@@ -1,0 +1,107 @@
+import {
+  ApiResponse,
+  Order,
+  Restaurant,
+  MenuItem,
+  OrderStatus,
+  SupportTicket,
+  AdminOverviewResponse,
+  OnboardRestaurantBody,
+  RefundBody,
+} from "@shoplift/types";
+import { supabaseAdmin } from "./supabase-admin";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+type ApiResult<T> = { data: T | null; error: string | null };
+
+async function fetcher<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<ApiResult<T>> {
+  const { data: session } = await supabaseAdmin.auth.getSession();
+  const token = session?.session?.access_token;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as unknown as Record<string, string>),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const url = `${BASE_URL}${endpoint}`;
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      return { data: null, error: "Unauthorized" };
+    }
+
+    const result: ApiResponse<T> = await response.json();
+
+    if (!response.ok || !result.success) {
+      return { data: null, error: result.error || "An error occurred" };
+    }
+
+    return { data: result.data as T, error: null };
+  } catch (error: any) {
+    return { data: null, error: error.message || "Network error" };
+  }
+}
+
+export const adminApi = {
+  // Super Admin
+  getOverview: () => fetcher<AdminOverviewResponse>("/admin/super/overview"),
+  getRestaurants: () => fetcher<Restaurant[]>("/admin/super/restaurants"),
+  onboardRestaurant: (body: OnboardRestaurantBody) =>
+    fetcher<Restaurant>("/admin/super/restaurants", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateRestaurant: (id: string, body: any) =>
+    fetcher<Restaurant>(`/admin/super/restaurants/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  getUser: (id: string) => fetcher<any>(`/admin/super/users/${id}`),
+  issueRefund: (body: RefundBody) =>
+    fetcher<any>("/admin/super/refunds", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getAuditLog: (params?: string) =>
+    fetcher<any[]>(`/admin/super/audit${params ? `?${params}` : ""}`),
+  getInventory: (params?: string) =>
+    fetcher<any[]>(`/admin/super/inventory${params ? `?${params}` : ""}`),
+
+  // Restaurant Admin
+  getOrders: () => fetcher<Order[]>("/admin/restaurant/orders"),
+  updateOrderStatus: (id: string, status: OrderStatus) =>
+    fetcher<Order>(`/orders/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+  getMenu: () => fetcher<MenuItem[]>("/admin/restaurant/menu"),
+  createMenuItem: (body: any) =>
+    fetcher<MenuItem>("/admin/restaurant/menu/items", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateMenuItem: (id: string, body: any) =>
+    fetcher<MenuItem>(`/admin/restaurant/menu/items/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteMenuItem: (id: string) =>
+    fetcher<any>(`/admin/restaurant/menu/items/${id}`, { method: "DELETE" }),
+  getAnalytics: (period: string) =>
+    fetcher<any>(`/admin/restaurant/analytics?period=${period}`),
+};

@@ -35,5 +35,49 @@
     "required": "Zorunlu",
     "optional": "İsteğe Bağlı",
     "maxSelections": "Maks {max}"
+  },
+  "checkout": {
+    "title": "Ödeme",
+    "stepAddress": "Adres",
+    "stepReview": "Özet",
+    "stepConfirm": "Onay",
+    "savedAddresses": "Kayıtlı Adresler",
+    "addNewAddress": "Yeni Adres Ekle",
+    "label": "Adres Başlığı (ev, iş vb.)",
+    "street": "Sokak / Cadde",
+    "district": "Semt / Mahalle",
+    "city": "Şehir",
+    "saveAddress": "Adresi Kaydet",
+    "orderSummary": "Sipariş Özeti",
+    "subtotal": "Ara Toplam",
+    "deliveryFee": "Gönderim Ücreti",
+    "discount": "İndirim",
+    "total": "Genel Toplam",
+    "promoCode": "Kupon Kodu",
+    "apply": "Uygula",
+    "paymentMethod": "Ödeme Yöntemi",
+    "card": "Banka / Kredi Kartı",
+    "cash": "Kapıda Ödeme",
+    "placeOrder": "Siparişi Onayla",
+    "invalidPromo": "Geçersiz kupon kodu",
+    "promoApplied": "Kupon uygulandı",
+    "emptyCart": "Sepetiniz boş."
+  },
+  "orderDetail": {
+    "title": "Sipariş Takibi",
+    "status": {
+      "PENDING": "Bekliyor",
+      "CONFIRMED": "Onaylandı",
+      "PREPARING": "Hazırlanıyor",
+      "READY_FOR_PICKUP": "Teslime Hazır",
+      "OUT_FOR_DELIVERY": "Yolda",
+      "DELIVERED": "Teslim Edildi",
+      "CANCELLED": "İptal Edildi"
+    },
+    "liveTracking": "Canlı Takip — Yakında",
+    "onTheWay": "Kurye yolda!",
+    "cancelOrder": "Siparişi İptal Et",
+    "cancelSuccess": "Sipariş iptal edildi.",
+    "summary": "Sipariş Özeti"
   }
 }

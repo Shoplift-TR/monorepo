@@ -419,4 +419,89 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
       return reply.send(response);
     },
   );
+
+  // GET /admin/super/audit
+  fastify.get<{
+    Querystring: {
+      action?: string;
+      admin_id?: string;
+      page?: string;
+      limit?: string;
+    };
+  }>(
+    "/audit",
+    { preHandler: [verifyAuth, requireSuperAdmin] },
+    async (request: any, reply) => {
+      const { action, admin_id, page = "1", limit = "50" } = request.query;
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      let query = supabase
+        .from("audit_logs")
+        .select(
+          `
+          *,
+          admin:admin_profiles(display_name, email)
+        `,
+          { count: "exact" },
+        )
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      if (action) query = query.eq("action", action);
+      if (admin_id) query = query.eq("admin_id", admin_id);
+
+      const { data, count, error } = await query;
+
+      if (error) {
+        return reply.status(500).send({ success: false, error: error.message });
+      }
+
+      return reply.send({
+        success: true,
+        data: { logs: data, total: count, page: pageNum, limit: limitNum },
+      });
+    },
+  );
+
+  // GET /admin/super/inventory
+  fastify.get(
+    "/inventory",
+    { preHandler: [verifyAuth, requireSuperAdmin] },
+    async (request: any, reply) => {
+      const { data: restaurants, error: restsError } = await supabase
+        .from("restaurants")
+        .select("id, name");
+
+      if (restsError)
+        return reply
+          .status(500)
+          .send({ success: false, error: restsError.message });
+
+      const { data: items, error: itemsError } = await supabase
+        .from("menu_items")
+        .select("id, restaurant_id, name, is_available");
+
+      if (itemsError)
+        return reply
+          .status(500)
+          .send({ success: false, error: itemsError.message });
+
+      const result = restaurants.map((r) => {
+        const rItems = items.filter((i) => i.restaurant_id === r.id);
+        const outOfStock = rItems.filter((i) => !i.is_available);
+        return {
+          restaurant_id: r.id,
+          name: r.name,
+          total_items: rItems.length,
+          available_items: rItems.length - outOfStock.length,
+          out_of_stock_items: outOfStock.length,
+          items: rItems,
+        };
+      });
+
+      return reply.send({ success: true, data: result });
+    },
+  );
 }

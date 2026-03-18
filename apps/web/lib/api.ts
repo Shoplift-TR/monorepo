@@ -121,8 +121,29 @@ export const ordersApi = {
 // --- Promos ---
 
 export const promosApi = {
-  validate: (body: { code: string; cartItems: any[] }) =>
+  validate: (body: {
+    code: string;
+    restaurantId: string;
+    cartTotal: number;
+    cartItemIds: string[];
+  }) =>
     fetcher<any>("/promos/validate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
+// --- Addresses ---
+
+export const addressesApi = {
+  list: () => fetcher<any[]>("/addresses"),
+  create: (body: {
+    label: string;
+    street: string;
+    district: string;
+    city: string;
+  }) =>
+    fetcher<any>("/addresses", {
       method: "POST",
       body: JSON.stringify(body),
     }),

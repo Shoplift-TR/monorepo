@@ -202,3 +202,29 @@ export interface TrackingRoute {
   totalPoints?: number;
   message?: string;
 }
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderRole: "customer" | "restaurant_admin" | "super_admin" | "ai";
+  body: string;
+  createdAt: string;
+}
+
+export interface CreateTicketBody {
+  orderId?: string;
+  restaurantId?: string;
+  issueType: "wrong_item" | "late_delivery" | "payment" | "other";
+  message: string;
+}
+
+export interface UpdateTicketStatusBody {
+  status:
+    | "open"
+    | "auto_resolved"
+    | "pending_human"
+    | "ai_responded"
+    | "resolved"
+    | "escalated";
+}

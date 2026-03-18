@@ -39,9 +39,6 @@ async function fetcher<T>(
     });
 
     if (response.status === 401) {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
       return { data: null, error: "Unauthorized" };
     }
 

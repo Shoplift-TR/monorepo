@@ -36,9 +36,6 @@ async function fetcher<T>(
     const response = await fetch(url, defaultOptions);
 
     if (response.status === 401) {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
       return { data: null, error: "Unauthorized" };
     }
 

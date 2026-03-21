@@ -2,7 +2,9 @@
   "nav": {
     "home": "Anasayfa",
     "restaurants": "Restoranlar",
-    "orders": "Siparişlerim"
+    "orders": "Siparişlerim",
+    "signIn": "Giriş Yap",
+    "createAccount": "Hesap Oluştur"
   },
   "auth": {
     "login": "Giriş Yap",
@@ -19,6 +21,27 @@
     "alreadyHaveAccount": "Zaten hesabınız var mı? Giriş Yap",
     "loginError": "Giriş başarısız. Bilgilerinizi kontrol edin.",
     "registerError": "Kayıt başarısız. Lütfen bilgilerinizi kontrol edin.",
+    "welcomeBack": "Tekrar hoş geldiniz",
+    "signInToAccount": "Hesabınıza giriş yapın",
+    "forgotPassword": "Unuttunuz mu?",
+    "orContinueWith": "veya şununla devam et",
+    "continueWithGoogle": "Google",
+    "continueWithApple": "Apple",
+    "newJourney": "Yeni Yolculuk",
+    "joinTheElite": "Seçkinlere Katılın.",
+    "registerSubtext": "Özel üniversite perakende hizmetlerine ve premium öğrenci teslimatına erişin.",
+    "universityEmail": "Üniversite E-postası",
+    "fullName": "Ad Soyad",
+    "language": "Dil",
+    "orRegisterWith": "veya şununla kayıt ol",
+    "secureData": "Güvenli Veri",
+    "campusVerified": "Sadece Kampüs Doğrulamalı",
+    "memberPerks": "Üye Ayrıcalıkları",
+    "dontHaveAccountPart1": "Hesabınız yok mu?",
+    "createOne": "Bir tane oluştur",
+    "alreadyHaveAccountPart1": "Zaten hesabınız var mı?",
+    "signInAction": "Giriş yap",
+    "elite": "Seçkinler",
     "signIn": {
       "title": "Giriş Yap",
       "description": "Shoplift hesabınıza giriş yapın",
@@ -43,6 +66,8 @@
   },
   "restaurants": {
     "searchPlaceholder": "Restoran ve market arayın",
+    "popularSearches": "Popüler aramalar",
+    "deliveryTime": "{min}-{max} dk",
     "freeDelivery": "Ücretsiz",
     "minOrder": "Min. {amount}",
     "noRestaurants": "Bu bölgede restoran bulunamadı.",

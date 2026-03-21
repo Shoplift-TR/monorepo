@@ -1,19 +1,15 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import Navbar from "@/components/Navbar";
 import "../globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
 });
 
 export const metadata = {
@@ -37,29 +33,15 @@ export default async function RootLayout({
 
   // Providing all messages to the client
   // side is the easiest way to get started
-  const messages = await getMessages();
+  const messages = (await getMessages()) as any;
 
   return (
     <html lang={locale}>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <NextIntlClientProvider messages={messages}>
+      <body className={`${plusJakartaSans.variable} antialiased font-sans`}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider>
             <CartProvider>
-              <header className="fixed top-0 w-full p-4 flex justify-between items-center bg-white/80 backdrop-blur-md z-10 border-b">
-                <div className="font-bold text-xl tracking-tighter">
-                  SHOPLIFT
-                </div>
-                <nav className="flex gap-4 items-center">
-                  <a
-                    href={`/${locale === "en" ? "tr" : "en"}`}
-                    className="text-sm font-medium px-3 py-1 rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors uppercase"
-                  >
-                    {locale === "en" ? "TR" : "EN"}
-                  </a>
-                </nav>
-              </header>
+              <Navbar />
               <main className="pt-20">{children}</main>
             </CartProvider>
           </AuthProvider>

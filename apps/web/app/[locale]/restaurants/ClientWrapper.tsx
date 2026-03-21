@@ -55,22 +55,7 @@ export default function ClientWrapper({
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-24">
-      {/* Hero Header */}
-      <div className="bg-[#E2103C] pt-6 pb-6 px-4">
-        {/* Search Bar */}
-        <div className="relative w-full max-w-[390px] mx-auto hidden sm:block">
-          {/* Mobile view restricts width below max-w-[390px], generic container */}
-        </div>
-        <div className="w-full max-w-[390px] mx-auto">
-          <input
-            type="text"
-            placeholder={t("searchPlaceholder")}
-            className="w-full h-12 bg-white rounded-[24px] px-5 pl-12 text-sm text-zinc-900 outline-none shadow-sm"
-          />
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-[#f8f9fa] pb-24">
       {/* Main Container */}
       <div className="w-full max-w-[390px] mx-auto pt-6 px-4">
         <h2 className="text-xl font-bold text-zinc-900 mb-4 tracking-tight">

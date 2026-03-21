@@ -5,6 +5,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Link } from "@/lib/navigation";
+import { supabase } from "@/lib/supabase-client";
+
+function sanitizeInput(value: string): string {
+  return value.replace(/[<>'"`;]/g, "").trimStart();
+}
 
 export default function LoginPage() {
   const t = useTranslations("auth");
@@ -37,69 +42,180 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      // Success redirection is handled by the useEffect watching [user]
     } catch (err: any) {
-      setError(t("loginError"));
+      // Check if this email exists as an OAuth-only account
+      const { data: oauthCheck, error: oauthError } =
+        await supabase.auth.signInWithPassword({ email, password });
+
+      if (
+        oauthError?.message?.toLowerCase().includes("invalid login credentials")
+      ) {
+        setError(
+          "No password found for this email. If you signed up with Google or Apple, please use those buttons below.",
+        );
+      } else {
+        setError(t("loginError"));
+      }
       setLoading(false);
     }
   };
 
+  const handleOAuth = async (provider: "google" | "apple") => {
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + "/" + locale + "/auth/callback",
+      },
+    });
+  };
+
   return (
-    <div className="w-full max-w-[390px] mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-zinc-900 mb-6">{t("login")}</h1>
-
-      {error && (
-        <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm font-medium">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div>
-          <label className="sr-only" htmlFor="email">
-            {t("email")}
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t("email")}
-            required
-            className="w-full h-12 px-4 rounded-xl bg-[#EEEEEE] focus:bg-white border border-transparent focus:border-zinc-300 focus:outline-none transition-colors"
-          />
-        </div>
-        <div>
-          <label className="sr-only" htmlFor="password">
-            {t("password")}
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={t("password")}
-            required
-            className="w-full h-12 px-4 rounded-xl bg-[#EEEEEE] focus:bg-white border border-transparent focus:border-zinc-300 focus:outline-none transition-colors"
-          />
+    <div className="min-h-screen flex flex-col items-center justify-center pt-20 pb-8 bg-[#f8f9fa] p-6 font-sans relative">
+      <div className="w-full max-w-[440px] bg-white rounded-[1rem] p-8 shadow-[0_12px_24px_rgba(0,4,53,0.08)] flex flex-col items-center">
+        <div className="text-[#101744] font-bold text-[1.5rem] tracking-[-0.04em] mb-10">
+          Shoplift
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full h-12 mt-2 rounded-full bg-[#E2103C] text-white font-bold hover:bg-[#c70d33] active:bg-[#a60b2b] transition-colors disabled:opacity-50"
-        >
-          {loading ? "..." : t("login")}
-        </button>
-      </form>
+        <div className="text-center mb-8">
+          <h1 className="text-[#101744] font-bold text-[1.5rem] tracking-[-0.04em]">
+            {t("welcomeBack")}
+          </h1>
+          <p className="text-[#5e5e5e] text-[0.875rem] mt-1">
+            {t("signInToAccount")}
+          </p>
+        </div>
 
-      <div className="mt-6 text-center">
-        <Link
-          href="/register"
-          className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
-        >
-          {t("dontHaveAccount")}
-        </Link>
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="email"
+              className="uppercase text-[0.6875rem] font-bold tracking-[0.05em] text-[#46464f] pl-1"
+            >
+              {t("email")}
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+              maxLength={254}
+              placeholder="name@university.edu"
+              required
+              className="w-full h-12 px-6 rounded-xl bg-white ring-1 ring-[#c7c5d0]/25 focus:ring-2 focus:ring-[#92fc40] focus:outline-none transition-all placeholder:text-[#777680]/50"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center px-1">
+              <label
+                htmlFor="password"
+                className="uppercase text-[0.6875rem] font-bold tracking-[0.05em] text-[#46464f]"
+              >
+                {t("password")}
+              </label>
+              <Link
+                href="/forgot"
+                className="text-[#77df1e] text-[0.6875rem] font-bold hover:text-[#92fc40]"
+              >
+                {t("forgotPassword")}
+              </Link>
+            </div>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value.replace(/[<>'"`;]/g, ""))
+              }
+              maxLength={128}
+              placeholder="••••••••"
+              required
+              className="w-full h-12 px-6 rounded-xl bg-white ring-1 ring-[#c7c5d0]/25 focus:ring-2 focus:ring-[#92fc40] focus:outline-none transition-all placeholder:text-[#777680]/50"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-12 mt-2 bg-[#92fc40] text-[#0b2000] font-bold rounded-full transition-all hover:bg-[#77df1e] active:scale-[0.98] cursor-pointer disabled:opacity-50 flex items-center justify-center"
+          >
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-[#0b2000] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              t("login")
+            )}
+          </button>
+
+          {error && (
+            <p className="text-[#ba1a1a] text-[0.875rem] text-center -mt-2">
+              {error}
+            </p>
+          )}
+        </form>
+
+        <div className="w-full flex items-center gap-4 my-8 text-[#777680]">
+          <div className="flex-1 h-px bg-[#c7c5d0]/20" />
+          <span className="uppercase text-[0.6875rem] font-bold tracking-[0.05em]">
+            {t("orContinueWith")}
+          </span>
+          <div className="flex-1 h-px bg-[#c7c5d0]/20" />
+        </div>
+
+        <div className="w-full grid grid-cols-2 gap-4">
+          <button
+            onClick={() => handleOAuth("google")}
+            className="h-12 rounded-full cursor-pointer bg-white ring-1 ring-[#c7c5d0]/25 hover:bg-[#edeeef] flex items-center justify-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            <span className="uppercase text-[0.6875rem] font-bold tracking-[0.05em] text-[#191c1d]">
+              {t("continueWithGoogle")}
+            </span>
+          </button>
+          <button
+            onClick={() => handleOAuth("apple")}
+            className="h-12 rounded-full cursor-pointer bg-white ring-1 ring-[#c7c5d0]/25 hover:bg-[#edeeef] flex items-center justify-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4 fill-black" viewBox="0 0 24 24">
+              <path d="M17.05 20.28c-.96.95-2.19 1.43-3.08 1.43-1.38 0-1.84-.71-3.69-.71s-2.48.69-3.68.69c-.93 0-2.12-.51-3.23-1.63C2.24 18.94 1 16.5 1 13.91c0-3.95 2.53-6.04 5.01-6.04.91 0 2.01.5 2.76.5.76 0 2.08-.57 3.16-.57 1.42 0 3.4.74 4.54 2.15-2.73 1.63-2.28 4.98.44 6.27-.66 1.77-1.84 3.12-3.06 4.06zM12.03 7.25c-.08-2.01 1.64-3.79 3.51-3.94.19 2.17-1.89 3.94-3.51 3.94z" />
+            </svg>
+            <span className="uppercase text-[0.6875rem] font-bold tracking-[0.05em] text-[#191c1d]">
+              {t("continueWithApple")}
+            </span>
+          </button>
+        </div>
+
+        <div className="mt-8 text-center text-[0.875rem]">
+          <span className="text-[#5e5e5e]">
+            {t("dontHaveAccountPart1") || "Don't have an account?"}{" "}
+          </span>
+          <Link
+            href="/register"
+            className="text-[#77df1e] font-bold hover:text-[#92fc40]"
+          >
+            {t("createOne") || "Create one"}
+          </Link>
+        </div>
+      </div>
+
+      <div className="fixed bottom-8 text-center text-[#c7c5d0]/60 text-[0.6875rem] font-bold uppercase tracking-[0.1em]">
+        © 2025 SHOPLIFT GLOBAL INC.
       </div>
     </div>
   );

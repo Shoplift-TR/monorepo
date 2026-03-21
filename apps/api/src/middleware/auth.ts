@@ -66,6 +66,7 @@ export const verifyAuth = async (
     uid: authData.user.id,
     email: authData.user.email ?? "",
     displayName: profile.display_name || "Customer",
+    username: profile.username || null,
     role: profile.role,
     restaurantId: profile.restaurant_id ?? null,
   };

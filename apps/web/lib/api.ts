@@ -21,15 +21,24 @@ type ApiResult<T> = { data: T | null; error: string | null };
 async function fetcher<T>(
   endpoint: string,
   options: RequestInit = {},
+  token?: string | null,
 ): Promise<ApiResult<T>> {
   const url = `${BASE_URL}${endpoint}`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  // Use Bearer token if provided, otherwise fall back to cookie
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const defaultOptions: RequestInit = {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
   };
 
   try {
@@ -80,14 +89,20 @@ export const authApi = {
       body: JSON.stringify(body),
     }),
   logout: () => fetcher<any>("/auth/logout", { method: "DELETE" }),
-  me: () =>
+  me: (token?: string | null) =>
     fetcher<{
       uid: string;
       email: string;
       displayName: string;
+      username: string | null;
       role: string;
       restaurantId: string | null;
-    }>("/auth/me"),
+    }>("/auth/me", {}, token),
+  updateUsername: (username: string) =>
+    fetcher<any>("/auth/profile/username", {
+      method: "PUT",
+      body: JSON.stringify({ username }),
+    }),
 };
 
 // --- Restaurants ---

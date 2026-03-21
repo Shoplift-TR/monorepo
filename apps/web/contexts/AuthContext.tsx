@@ -2,11 +2,16 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { authApi } from "@/lib/api";
+import { supabase } from "@/lib/supabase-client";
+
+// Store token in memory (not localStorage) for security
+let memoryToken: string | null = null;
 
 export interface AuthState {
   uid: string;
   email: string;
   displayName: string;
+  username: string | null;
   role: string;
   restaurantId: string | null;
 }
@@ -17,6 +22,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (body: any) => Promise<void>;
   logout: () => Promise<void>;
+  updateUsername: (username: string) => Promise<{ error: string | null }>;
+  rehydrate: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const rehydrate = async () => {
     try {
-      const { data, error } = await authApi.me();
+      // Try to get token from Supabase client session first
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        memoryToken = session.access_token;
+      }
+
+      const { data, error } = await authApi.me(memoryToken);
       if (!error && data) {
         setUser(data);
       } else {
@@ -70,8 +85,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const updateUsername = async (
+    username: string,
+  ): Promise<{ error: string | null }> => {
+    const { data, error } = await authApi.updateUsername(username);
+    if (!error) {
+      await rehydrate();
+      return { error: null };
+    }
+    return { error };
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        updateUsername,
+        rehydrate,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

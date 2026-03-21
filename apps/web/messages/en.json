@@ -2,7 +2,9 @@
   "nav": {
     "home": "Home",
     "restaurants": "Restaurants",
-    "orders": "Orders"
+    "orders": "Orders",
+    "signIn": "Sign In",
+    "createAccount": "Create Account"
   },
   "auth": {
     "login": "Login",
@@ -19,6 +21,27 @@
     "alreadyHaveAccount": "Already have an account? Login",
     "loginError": "Invalid credentials or login failed.",
     "registerError": "Registration failed. Please check your details.",
+    "welcomeBack": "Welcome back",
+    "signInToAccount": "Sign in to your account",
+    "forgotPassword": "Forgot?",
+    "orContinueWith": "or continue with",
+    "continueWithGoogle": "Google",
+    "continueWithApple": "Apple",
+    "newJourney": "New Journey",
+    "joinTheElite": "Join the Elite.",
+    "registerSubtext": "Access exclusive university retail services and premium student delivery.",
+    "universityEmail": "University Email",
+    "fullName": "Full Name",
+    "language": "Language",
+    "orRegisterWith": "or register with",
+    "secureData": "Secure Data",
+    "campusVerified": "Campus Verified Only",
+    "memberPerks": "Member Perks",
+    "dontHaveAccountPart1": "Don't have an account?",
+    "createOne": "Create one",
+    "alreadyHaveAccountPart1": "Already have an account?",
+    "signInAction": "Sign in",
+    "elite": "Elite",
     "signIn": {
       "title": "Sign In",
       "description": "Sign in to your Shoplift account",
@@ -42,6 +65,8 @@
     }
   },
   "restaurants": {
+    "popularSearches": "Popular searches",
+    "deliveryTime": "{min}-{max} mins",
     "searchPlaceholder": "Search for restaurants and shops",
     "freeDelivery": "Free",
     "minOrder": "{amount} minimum",

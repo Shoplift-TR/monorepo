@@ -6,6 +6,7 @@ interface RegisterBody {
   email: string;
   password: string;
   displayName: string;
+  username?: string;
   phone: string;
   preferredLanguage: "tr" | "en";
 }
@@ -139,7 +140,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         reply.setCookie("token", data.session.access_token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          sameSite: "lax",
           path: "/",
           maxAge: 3600,
         });
@@ -228,7 +229,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         reply.setCookie("token", data.session.access_token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "strict",
+          sameSite: "lax",
           path: "/",
           maxAge: 3600,
         });
@@ -271,6 +272,125 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       return reply.send(request.user);
+    },
+  );
+
+  // PUT /auth/profile/username
+  fastify.put<{ Body: { username: string } }>(
+    "/profile/username",
+    { preHandler: [verifyAuth] },
+    async (request, reply) => {
+      const { username } = request.body;
+      const user = request.user!;
+
+      // Sanitize
+      const sanitized = username
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "")
+        .slice(0, 30);
+
+      if (sanitized.length < 3) {
+        return reply.status(400).send({
+          success: false,
+          data: null,
+          error: "Username must be at least 3 characters",
+        });
+      }
+
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("username", sanitized)
+        .neq("id", user.uid)
+        .maybeSingle();
+
+      if (existing) {
+        return reply.status(409).send({
+          success: false,
+          data: null,
+          error: "Username already taken",
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ username: sanitized })
+        .eq("id", user.uid)
+        .select()
+        .single();
+
+      if (error) {
+        return reply.status(500).send({
+          success: false,
+          data: null,
+          error: error.message,
+        });
+      }
+
+      return reply.send({ success: true, data, error: null });
+    },
+  );
+
+  // POST /auth/oauth-callback
+  // Called after OAuth flow to set the httpOnly cookie from a Supabase token
+  fastify.post<{ Body: { access_token: string } }>(
+    "/oauth-callback",
+    async (request, reply) => {
+      const { access_token } = request.body;
+
+      if (!access_token) {
+        return reply.status(400).send({
+          success: false,
+          error: "Missing access_token",
+        });
+      }
+
+      // Verify the token is valid with Supabase
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(access_token);
+
+      if (error || !user) {
+        return reply.status(401).send({
+          success: false,
+          error: "Invalid token",
+        });
+      }
+
+      // Ensure profile exists (OAuth users may not have gone through /register)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        // Create profile for OAuth user if trigger didn't fire
+        await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email,
+          display_name:
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split("@")[0] ||
+            "User",
+          role: "customer",
+          preferred_language: "en",
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      // Set the httpOnly cookie exactly like /auth/login does
+      reply.setCookie("token", access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 3600,
+      });
+
+      return reply.send({ success: true });
     },
   );
 }

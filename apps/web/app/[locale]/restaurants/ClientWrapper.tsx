@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { Restaurant } from "@shoplift/types";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/lib/navigation";
 
 interface ClientWrapperProps {
   initialRestaurants: Restaurant[];
@@ -140,7 +140,7 @@ function RestaurantCard({
   const minOrderStr = t("minOrder", { amount: "₺" + 150 });
 
   return (
-    <Link href={`/${locale}/restaurants/${restaurant.id}`} className="block">
+    <Link href={`/restaurants/${restaurant.id}`} className="block">
       <div className="w-full bg-white rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.08)] overflow-hidden">
         {/* Hero Image */}
         <div className="relative w-full h-40 bg-zinc-200">

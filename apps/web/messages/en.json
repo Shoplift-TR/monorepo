@@ -18,7 +18,28 @@
     "dontHaveAccount": "Don't have an account? Register",
     "alreadyHaveAccount": "Already have an account? Login",
     "loginError": "Invalid credentials or login failed.",
-    "registerError": "Registration failed. Please check your details."
+    "registerError": "Registration failed. Please check your details.",
+    "signIn": {
+      "title": "Sign In",
+      "description": "Sign in to your Shoplift account",
+      "email": "Email",
+      "password": "Password",
+      "emailPlaceholder": "Enter your email",
+      "passwordPlaceholder": "Enter your password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "signingIn": "Signing In...",
+      "signIn": "Sign In",
+      "continueWithGoogle": "Continue with Google",
+      "continueWithApple": "Continue with Apple",
+      "continueWithGithub": "Continue with GitHub",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign Up"
+    },
+    "signUp": {
+      "title": "Sign Up",
+      "description": "Create your Shoplift account"
+    }
   },
   "restaurants": {
     "searchPlaceholder": "Search for restaurants and shops",

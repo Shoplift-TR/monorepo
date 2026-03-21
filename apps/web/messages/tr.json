@@ -18,7 +18,28 @@
     "dontHaveAccount": "Hesabınız yok mu? Kayıt Ol",
     "alreadyHaveAccount": "Zaten hesabınız var mı? Giriş Yap",
     "loginError": "Giriş başarısız. Bilgilerinizi kontrol edin.",
-    "registerError": "Kayıt başarısız. Lütfen bilgilerinizi kontrol edin."
+    "registerError": "Kayıt başarısız. Lütfen bilgilerinizi kontrol edin.",
+    "signIn": {
+      "title": "Giriş Yap",
+      "description": "Shoplift hesabınıza giriş yapın",
+      "email": "E-posta",
+      "password": "Şifre",
+      "emailPlaceholder": "E-posta adresinizi girin",
+      "passwordPlaceholder": "Şifrenizi girin",
+      "rememberMe": "Beni hatırla",
+      "forgotPassword": "Şifrenizi mi unuttunuz?",
+      "signingIn": "Giriş yapılıyor...",
+      "signIn": "Giriş Yap",
+      "continueWithGoogle": "Google ile devam et",
+      "continueWithApple": "Apple ile devam et",
+      "continueWithGithub": "GitHub ile devam et",
+      "noAccount": "Hesabınız yok mu?",
+      "signUp": "Kayıt Ol"
+    },
+    "signUp": {
+      "title": "Kayıt Ol",
+      "description": "Shoplift hesabınızı oluşturun"
+    }
   },
   "restaurants": {
     "searchPlaceholder": "Restoran ve market arayın",

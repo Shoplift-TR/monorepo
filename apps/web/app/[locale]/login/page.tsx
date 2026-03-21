@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { Link } from "@/lib/navigation";
 
 export default function LoginPage() {
   const t = useTranslations("auth");
@@ -95,7 +95,7 @@ export default function LoginPage() {
 
       <div className="mt-6 text-center">
         <Link
-          href={`/${locale}/register`}
+          href="/register"
           className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
         >
           {t("dontHaveAccount")}

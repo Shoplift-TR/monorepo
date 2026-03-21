@@ -8,7 +8,7 @@ import {
   CartModifier,
   CartModifierOption,
 } from "@/contexts/CartContext";
-import Link from "next/link";
+import { Link } from "@/lib/navigation";
 import { useRouter } from "next/navigation";
 
 interface ClientMenuProps {
@@ -183,7 +183,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
       {totalItems > 0 && restaurantId === restaurant.id && (
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-200 p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] z-40 transform translate-y-0 transition-transform md:max-w-[500px] md:left-1/2 md:-translate-x-1/2 md:pb-6">
           <Link
-            href={`/${locale}/checkout`}
+            href="/checkout"
             className="flex items-center justify-between w-full h-[52px] px-5 rounded-full bg-[#E2103C] hover:bg-[#cc0d35] transition-colors text-white shadow-md active:scale-[0.98]"
           >
             <div className="flex items-center gap-3">

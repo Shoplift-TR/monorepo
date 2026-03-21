@@ -265,16 +265,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
   );
 
   // GET /auth/me
-  fastify.get(
-    "/me",
-    {
-      preHandler: [verifyAuth],
-    },
-    async (request, reply) => {
-      return reply.send(request.user);
-    },
-  );
-
+  fastify.get("/me", { preHandler: [verifyAuth] }, async (request, reply) => {
+    return reply.send({
+      success: true,
+      data: request.user,
+      error: null,
+    });
+  });
   // PUT /auth/profile/username
   fastify.put<{ Body: { username: string } }>(
     "/profile/username",

@@ -6,7 +6,8 @@ import { useRouter, Link } from "@/lib/navigation";
 import { useState, useRef, useEffect } from "react";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
+  console.log("Navbar user state:", user, "loading:", loading);
   const params = useParams();
   const locale = (params?.locale as string) ?? "en";
   const router = useRouter();

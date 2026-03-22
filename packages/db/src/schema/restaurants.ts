@@ -29,6 +29,8 @@ export const restaurants = pgTable("restaurants", {
   operatingHours: jsonb("operating_hours"),
   slug: text("slug").unique(),
   deliveryFee: numeric("delivery_fee").default("0"),
+  lat: numeric("lat"),
+  lng: numeric("lng"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

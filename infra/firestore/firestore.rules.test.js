@@ -1,3 +1,4 @@
+/* eslint-env node, jest */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const rules_unit_testing_1 = require("@firebase/rules-unit-testing");

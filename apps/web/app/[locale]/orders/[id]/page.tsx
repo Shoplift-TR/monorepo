@@ -15,6 +15,7 @@ import {
   Home,
   XCircle,
 } from "lucide-react";
+import Map from "@/components/Map";
 
 const STEPS = [
   "PENDING",
@@ -32,6 +33,10 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [driverPos, setDriverPos] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchOrder();
@@ -58,6 +63,38 @@ export default function OrderDetailsPage() {
       supabase.removeChannel(subscription);
     };
   }, [id]);
+
+  // Driver movement simulation
+  useEffect(() => {
+    if (!order || order.status !== "OUT_FOR_DELIVERY") return;
+
+    const rLat = Number(order.restaurant_lat);
+    const rLng = Number(order.restaurant_lng);
+    const cLat = Number(order.customer_lat);
+    const cLng = Number(order.customer_lng);
+
+    if (!rLat || !cLat) return;
+
+    let progress = 0.3; // Start 30% along the path
+    setDriverPos({
+      lat: rLat + (cLat - rLat) * progress,
+      lng: rLng + (cLng - rLng) * progress,
+    });
+
+    const interval = setInterval(() => {
+      progress += 0.01;
+      if (progress >= 1) {
+        clearInterval(interval);
+        return;
+      }
+      setDriverPos({
+        lat: rLat + (cLat - rLat) * progress,
+        lng: rLng + (cLng - rLng) * progress,
+      });
+    }, 3000); // Update every 3s
+
+    return () => clearInterval(interval);
+  }, [order?.status]);
 
   const fetchOrder = async () => {
     setLoading(true);
@@ -208,21 +245,41 @@ export default function OrderDetailsPage() {
           </div>
         </div>
 
-        {/* Map Placeholder */}
-        <div className="bg-zinc-200 h-48 rounded-[12px] relative overflow-hidden flex items-center justify-center">
-          <div className="absolute inset-0 bg-zinc-200 flex items-center justify-center">
-            <div className="relative">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-[#E2103C]/30 rounded-full animate-ping" />
-              <div className="w-3 h-3 bg-[#E2103C] rounded-full shadow-lg shadow-red-200" />
+        {/* Map Integration */}
+        <div className="bg-white p-2 rounded-[16px] shadow-sm border border-zinc-100 overflow-hidden h-[240px]">
+          {order.restaurant_lat && order.customer_lat ? (
+            <Map
+              center={{
+                lat:
+                  (Number(order.restaurant_lat) + Number(order.customer_lat)) /
+                  2,
+                lng:
+                  (Number(order.restaurant_lng) + Number(order.customer_lng)) /
+                  2,
+              }}
+              zoom={13}
+              markers={[
+                {
+                  lat: Number(order.restaurant_lat),
+                  lng: Number(order.restaurant_lng),
+                  color: "#E2103C",
+                  label: "Shop",
+                },
+                {
+                  lat: Number(order.customer_lat),
+                  lng: Number(order.customer_lng),
+                  color: "#000",
+                  label: "Home",
+                },
+              ]}
+              driverLocation={driverPos || undefined}
+              className="h-full w-full rounded-[12px]"
+            />
+          ) : (
+            <div className="h-full w-full bg-zinc-100 flex items-center justify-center text-zinc-400">
+              No location data available
             </div>
-          </div>
-          <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-            <span className="text-xs font-bold text-zinc-900">
-              {order.status === "OUT_FOR_DELIVERY"
-                ? t("onTheWay")
-                : t("liveTracking")}
-            </span>
-          </div>
+          )}
         </div>
 
         {/* Items Card */}

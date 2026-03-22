@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { useTranslations } from "next-intl";
+import { useRouter, useParams } from "next/navigation";
 
 export default function LoginPage() {
   const t = useTranslations("login");
@@ -10,7 +11,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAdminAuth();
+  const { login, user, loading } = useAdminAuth();
+  const router = useRouter();
+  const { locale } = useParams();
+
+  // Redirect when user is set after login
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+
+    if (user.role === "super_admin") {
+      router.push(`/${locale}/super`);
+    } else if (user.role === "restaurant_admin") {
+      router.push(`/${locale}/restaurant/orders`);
+    } else {
+      router.push(`/${locale}/super`);
+    }
+  }, [user, loading, router, locale]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,83 +37,158 @@ export default function LoginPage() {
     const { error } = await login(email, password);
     if (error) {
       setErrorMsg(error);
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
+    // Don't setIsLoading(false) on success —
+    // keep spinner showing until useEffect redirects
   };
 
-  return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-[420px] rounded-[16px] shadow-[0_2px_8px_rgba(0,0,0,0.08)] overflow-hidden">
-        {/* Header Ribbon */}
-        <div className="h-2 w-full bg-[#E2103C]" />
+  // Show spinner while redirecting
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
+        <div
+          className="w-10 h-10 border-[3px] border-[#92fc40] 
+                        border-t-transparent animate-spin rounded-full"
+        />
+      </div>
+    );
+  }
 
-        <div className="p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-[28px] font-black tracking-tight text-zinc-900">
-                Shoplift
-              </h1>
+  return (
+    <div
+      className="min-h-screen bg-[#f8f9fa] flex flex-col items-center 
+                    justify-center p-6 font-sans"
+    >
+      <main
+        className="w-full max-w-[440px] bg-white rounded-[1rem] p-8 
+                       shadow-[0_12px_24px_rgba(0,4,53,0.08)] 
+                       flex flex-col items-center"
+      >
+        <div className="mb-10 text-center flex flex-col items-center">
+          <span className="text-2xl font-bold tracking-tighter text-[#101744]">
+            Shoplift
+          </span>
+          <span
+            className="text-[0.625rem] font-black uppercase 
+                           tracking-[0.2em] text-[#101744]/40 mt-1"
+          >
+            {t("title")}
+          </span>
+        </div>
+
+        <div className="w-full text-center mb-10">
+          <h1
+            className="text-2xl font-bold tracking-[-0.04em] 
+                         text-[#101744] mb-2"
+          >
+            {t("welcomeBack")}
+          </h1>
+          <p className="text-[#5e5e5e] text-sm">{t("signInToAccount")}</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="w-full space-y-6 text-left">
+          <div className="space-y-2">
+            <label
+              className="block text-[0.6875rem] font-bold uppercase 
+                         tracking-[0.05em] text-[#46464f] px-1"
+              htmlFor="email"
+            >
+              {t("email")}
+            </label>
+            <input
+              className="w-full h-12 px-6 rounded-xl bg-white ring-1 
+                         ring-[#c7c5d0]/30 focus:ring-2 focus:ring-[#92fc40] 
+                         focus:outline-none transition-all duration-200 
+                         text-[#191c1d] placeholder:text-[#777680]/50"
+              id="email"
+              placeholder="name@company.com"
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value.replace(/[<>'"`;]/g, "").slice(0, 254))
+              }
+              required
+              maxLength={254}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center px-1">
+              <label
+                className="block text-[0.6875rem] font-bold uppercase 
+                           tracking-[0.05em] text-[#46464f]"
+                htmlFor="password"
+              >
+                {t("password")}
+              </label>
             </div>
-            <span className="px-2 py-0.5 bg-[#E2103C] text-white text-xs font-bold rounded-md uppercase tracking-wider">
-              {t("title")}
-            </span>
+            <input
+              className="w-full h-12 px-6 rounded-xl bg-white ring-1 
+                         ring-[#c7c5d0]/30 focus:ring-2 focus:ring-[#92fc40] 
+                         focus:outline-none transition-all duration-200 
+                         text-[#191c1d] placeholder:text-[#777680]/50"
+              id="password"
+              placeholder="••••••••"
+              type="password"
+              value={password}
+              onChange={(e) =>
+                setPassword(
+                  e.target.value.replace(/[<>'"`;]/g, "").slice(0, 128),
+                )
+              }
+              required
+              maxLength={128}
+            />
           </div>
 
           {errorMsg && (
-            <div className="mb-6 p-3 bg-red-50 text-red-600 text-sm font-medium rounded-lg text-center">
+            <p
+              className="text-[#ba1a1a] text-xs font-bold 
+                          text-center -mb-2 px-1"
+            >
               {errorMsg}
-            </div>
+            </p>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <input
-                type="email"
-                placeholder={t("email")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full h-12 px-4 rounded-[12px] bg-[#EEEEEE] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#E2103C]/20 border border-transparent focus:border-[#E2103C] transition-all"
+          <button
+            disabled={isLoading}
+            className="w-full h-12 mt-4 bg-[#92fc40] hover:bg-[#77df1e] 
+                       text-[#0b2000] font-bold rounded-full transition-all 
+                       duration-200 transform hover:scale-[1.02] 
+                       active:scale-[0.98] flex items-center justify-center 
+                       text-sm disabled:opacity-50"
+            type="submit"
+          >
+            {isLoading ? (
+              <div
+                className="w-5 h-5 border-2 border-[#0b2000] 
+                              border-t-transparent animate-spin rounded-full"
               />
-            </div>
+            ) : (
+              t("submit")
+            )}
+          </button>
+        </form>
 
-            <div>
-              <input
-                type="password"
-                placeholder={t("password")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full h-12 px-4 rounded-[12px] bg-[#EEEEEE] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#E2103C]/20 border border-transparent focus:border-[#E2103C] transition-all"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`
-                w-full h-12 mt-2 rounded-[24px] bg-[#E2103C] text-white font-bold text-[15px]
-                flex items-center justify-center
-                ${isLoading ? "opacity-70 cursor-not-allowed" : "hover:bg-red-700 active:scale-[0.98] transition-all"}
-              `}
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
-              ) : (
-                t("submit")
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 text-center">
-            <p className="text-xs text-zinc-400">
-              Authorized personnel only. Admins are provisioned by super admins.
-              No registration link.
-            </p>
-          </div>
+        <div className="mt-10 text-center px-4">
+          <p
+            className="text-[0.6875rem] text-[#5e5e5e] font-medium 
+                        leading-relaxed italic opacity-60"
+          >
+            {t("authorizedPersonnelOnly")}
+          </p>
         </div>
-      </div>
+      </main>
+
+      <footer className="fixed bottom-8 text-center w-full">
+        <p
+          className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] 
+                      text-[#c7c5d0]/60"
+        >
+          © 2025 Shoplift Global Inc.
+        </p>
+      </footer>
     </div>
   );
 }

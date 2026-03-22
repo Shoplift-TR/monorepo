@@ -101,4 +101,14 @@ export const adminApi = {
     fetcher<any>(`/admin/restaurant/menu/items/${id}`, { method: "DELETE" }),
   getAnalytics: (period: string) =>
     fetcher<any>(`/admin/restaurant/analytics?period=${period}`),
+  rejectOrder: (id: string, reason?: string) =>
+    fetcher<Order>(`/orders/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  updateTelegramChatId: (telegramChatId: string) =>
+    fetcher<any>("/auth/profile/telegram", {
+      method: "PUT",
+      body: JSON.stringify({ telegramChatId }),
+    }),
 };

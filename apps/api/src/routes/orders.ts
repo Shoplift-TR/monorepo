@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { supabase } from "../lib/supabase.js";
-import { notifyNewOrder, notifyOrderStatusChange } from "../lib/notifier.js";
+import { notifyOrderStatusChange } from "../lib/notifier.js";
+import { sendOrderNotifications } from "../lib/notifications.js";
 import { validatePromo } from "../lib/promos.js";
 import { verifyAuth } from "../middleware/auth.js";
 import {
@@ -173,13 +174,20 @@ export default async function orderRoutes(fastify: FastifyInstance) {
 
         // 6. Calculate total
         const restaurantResult = await db
-          .select({ deliveryFee: restaurants.deliveryFee })
+          .select({
+            deliveryFee: restaurants.deliveryFee,
+            commissionRate: restaurants.commissionRate,
+            name: restaurants.name,
+          })
           .from(restaurants)
           .where(eq(restaurants.id, restaurantId))
           .limit(1);
 
-        const deliveryFee = Number(restaurantResult[0]?.deliveryFee ?? 0);
-        const total = subtotal + deliveryFee - discount;
+        const restaurant = restaurantResult[0];
+        const deliveryFee = Number(restaurant?.deliveryFee ?? 0);
+        const platformFee =
+          subtotal * Number(restaurant?.commissionRate ?? 0.1);
+        const total = subtotal + deliveryFee - discount + platformFee;
 
         // 7. Build deliveryAddressSnapshot
         const deliveryAddressSnapshot = { ...address };
@@ -205,6 +213,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             paymentIntentId: paymentIntentId,
             subtotal: subtotal.toString(),
             deliveryFee: deliveryFee.toString(),
+            platformFee: platformFee.toString(),
             discount: discount.toString(),
             total: total.toString(),
             promoCode: promoCode,
@@ -216,29 +225,47 @@ export default async function orderRoutes(fastify: FastifyInstance) {
 
         const order = orderResult[0];
 
-        // 10. Fetch restaurant name for notification
-        const restaurantData = await db
-          .select({ name: restaurants.name })
-          .from(restaurants)
-          .where(eq(restaurants.id, restaurantId))
+        // 10. Fetch restaurant admin email for notification
+        const restaurantProfileResult = await db
+          .select({ email: profiles.email })
+          .from(profiles)
+          .where(
+            and(
+              eq(profiles.restaurantId, restaurantId),
+              eq(profiles.role, "restaurant_admin"),
+            ),
+          )
           .limit(1);
 
-        const restaurant = restaurantData[0];
+        const restaurantProfile = restaurantProfileResult[0];
 
-        // 11. Notify new order
-        await notifyNewOrder({
+        // 11. Notify new order (fire and forget)
+        sendOrderNotifications({
           orderId: order.id,
           restaurantId,
           restaurantName:
-            typeof (restaurant as any)?.name === "object"
-              ? ((restaurant as any).name as any).en ||
-                ((restaurant as any).name as any).tr
-              : (restaurant as any)?.name || "Restaurant",
-          restaurantEmail: "", // As requested
+            typeof restaurant?.name === "object"
+              ? (restaurant.name as any).en || (restaurant.name as any).tr
+              : (restaurant?.name as any) || "Restaurant",
+          restaurantEmail: restaurantProfile?.email || "",
           customerName: user.displayName ?? "Customer",
-          items: summarizedItems,
+          customerEmail: user.email ?? "",
+          items: summarizedItems.map((i) => ({
+            name: typeof i.name === "object" ? (i.name as any).en : i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            lineTotal: i.lineTotal,
+          })),
+          subtotal,
+          deliveryFee,
+          discount,
+          platformFee,
           total,
-        });
+          promoCode: promoCode,
+          deliveryAddress: `${address.street}, ${address.district}, ${address.city}`,
+          notes: notes || undefined,
+          createdAt: order.createdAt?.toISOString() || new Date().toISOString(),
+        }).catch((err) => console.error("Notification dispatch failed:", err));
 
         return reply.status(201).send({ success: true, data: order });
       } catch (error: any) {
@@ -289,7 +316,34 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             .send({ success: false, error: "Access denied" });
         }
 
-        return reply.send({ success: true, data: order });
+        // Fetch restaurant data for map display on the tracking page
+        const restaurantData = await db
+          .select({
+            lat: restaurants.lat,
+            lng: restaurants.lng,
+            name: restaurants.name,
+          })
+          .from(restaurants)
+          .where(eq(restaurants.id, order.restaurantId))
+          .limit(1);
+
+        return reply.send({
+          success: true,
+          data: {
+            ...order,
+            restaurant_lat: restaurantData[0]?.lat
+              ? Number(restaurantData[0].lat)
+              : null,
+            restaurant_lng: restaurantData[0]?.lng
+              ? Number(restaurantData[0].lng)
+              : null,
+            restaurant_name:
+              typeof restaurantData[0]?.name === "object"
+                ? (restaurantData[0].name as any).en ||
+                  (restaurantData[0].name as any).tr
+                : restaurantData[0]?.name,
+          },
+        });
       } catch (error: any) {
         request.log.error(error);
         return reply.status(500).send({
@@ -500,4 +554,62 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  /**
+   * POST /orders/:id/reject
+   * Requires verifyAuth. Only allowed if restaurant_admin or super_admin and PENDING.
+   */
+  fastify.post<{
+    Params: { id: string };
+    Body: { reason?: string };
+  }>("/:id/reject", { preHandler: [verifyAuth] }, async (request, reply) => {
+    const { id } = request.params;
+    const { reason } = request.body;
+    const user = (request as any).user!;
+
+    if (!["restaurant_admin", "super_admin"].includes(user.role)) {
+      return reply.status(403).send({
+        success: false,
+        error: "Forbidden",
+      });
+    }
+
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .limit(1);
+
+    const order = orderResult[0];
+    if (!order) {
+      return reply.status(404).send({
+        success: false,
+        error: "Order not found",
+      });
+    }
+
+    if (order.status !== "PENDING") {
+      return reply.status(400).send({
+        success: false,
+        error: "Only PENDING orders can be rejected",
+      });
+    }
+
+    const rejectionReason = reason?.trim() || "Contact support for more info";
+
+    const updated = await db
+      .update(orders)
+      .set({
+        status: "CANCELLED",
+        rejectionReason,
+      })
+      .where(eq(orders.id, id))
+      .returning();
+
+    return reply.send({
+      success: true,
+      data: updated[0],
+      error: null,
+    });
+  });
 }

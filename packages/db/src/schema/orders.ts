@@ -32,6 +32,8 @@ export const orders = pgTable("orders", {
   estimatedDeliveryTime: text("estimated_delivery_time"),
   confirmedAt: timestamp("confirmed_at"),
   deliveredAt: timestamp("delivered_at"),
+  platformFee: numeric("platform_fee").default("0"),
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

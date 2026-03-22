@@ -5,6 +5,7 @@ import { Restaurant } from "@shoplift/types";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Link } from "@/lib/navigation";
+import { MapPin } from "lucide-react";
 
 interface ClientWrapperProps {
   initialRestaurants: Restaurant[];
@@ -24,25 +25,10 @@ export default function ClientWrapper({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // On mount, grab geolocation if not already in URL
+  // Geolocation is now triggered manually via "Near Me" toggle
   useEffect(() => {
-    if (!searchParams.has("lat") || !searchParams.has("lng")) {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("lat", pos.coords.latitude.toString());
-            params.set("lng", pos.coords.longitude.toString());
-            params.set("radius", "5000"); // 5km radius
-            router.replace(`${pathname}?${params.toString()}`);
-          },
-          (err) => {
-            console.warn("Geolocation denied or error", err);
-          },
-        );
-      }
-    }
-  }, [searchParams, pathname, router]);
+    // Left empty or removed as requested to avoid auto-prompt
+  }, []);
 
   const handleCuisineClick = (cuisine: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -54,6 +40,25 @@ export default function ClientWrapper({
     router.push(`${pathname}?${params.toString()}`);
   };
 
+  const handleNearMe = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("lat", pos.coords.latitude.toString());
+          params.set("lng", pos.coords.longitude.toString());
+          params.set("radius", "5000");
+          router.push(`${pathname}?${params.toString()}`);
+        },
+        (err) => {
+          alert("Please enable location services to see restaurants near you.");
+        },
+      );
+    }
+  };
+
+  const isNearMeActive = searchParams.has("lat") && searchParams.has("lng");
+
   return (
     <div className="min-h-screen bg-[#f8f9fa] pb-24">
       {/* Main Container */}
@@ -64,6 +69,20 @@ export default function ClientWrapper({
 
         {/* Categories Chips */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 mb-6">
+          <button
+            onClick={handleNearMe}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-[20px] text-sm font-bold border transition-all ${
+              isNearMeActive
+                ? "border-[#92fc40] bg-[#92fc40]/10 text-[#2a4d14]"
+                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 shadow-sm"
+            }`}
+          >
+            <MapPin
+              className={`w-3.5 h-3.5 ${isNearMeActive ? "text-[#2a4d14]" : "text-zinc-400"}`}
+            />
+            Near Me
+          </button>
+
           {CUISINES.map((cuisine) => {
             const isActive = currentCuisine === cuisine;
             return (

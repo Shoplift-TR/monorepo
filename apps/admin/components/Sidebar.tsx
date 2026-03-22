@@ -14,7 +14,9 @@ import {
   LogOut,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
+import { useNotifications } from "@/contexts/NotificationContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -23,6 +25,13 @@ export default function Sidebar() {
   const { user, logout } = useAdminAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const {
+    unreadCount,
+    notifications,
+    clearNotifications,
+    dismissNotification,
+  } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   if (!user) return null;
 
@@ -63,6 +72,67 @@ export default function Sidebar() {
           <p className="text-xs text-zinc-500 capitalize">
             {user.role.replace("_", " ")}
           </p>
+        </div>
+
+        {/* Notification Bell */}
+        <div className="relative mt-2">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 rounded-lg w-full transition-colors relative"
+          >
+            <div className="relative">
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#E2103C] text-[8px] font-bold text-white w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 border-white">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <span>Notifications</span>
+          </button>
+
+          {showNotifications && (
+            <div className="absolute left-full ml-2 top-0 w-64 bg-white border border-zinc-100 rounded-xl shadow-xl z-[100] p-4 max-h-[400px] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-xs text-zinc-900 uppercase tracking-wider">
+                  Alerts
+                </h3>
+                <button
+                  onClick={clearNotifications}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-600 underline font-bold"
+                >
+                  Clear all
+                </button>
+              </div>
+              {notifications.length === 0 ? (
+                <p className="text-xs text-zinc-400 text-center py-4 italic">
+                  No new notifications
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-2 bg-zinc-50 rounded-lg border border-zinc-100 group relative"
+                    >
+                      <p className="text-[11px] font-bold text-zinc-900 leading-tight">
+                        New Order: #{n.id.slice(0, 8).toUpperCase()}
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-1">
+                        ₺{n.total.toFixed(2)}
+                      </p>
+                      <button
+                        onClick={() => dismissNotification(n.id)}
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-2.5 h-2.5 text-zinc-400 hover:text-red-500" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

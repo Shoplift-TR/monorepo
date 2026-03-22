@@ -209,10 +209,7 @@ export default function HomePage() {
               <div
                 key={res.id}
                 onClick={() => router.push(`/restaurants/${res.id}`)}
-                className="bg-white dark:bg-[#1e2235] rounded-[12px] 
-                           shadow-[0_12px_24px_rgba(0,4,53,0.08)] 
-                           overflow-hidden relative group cursor-pointer 
-                           transition-all hover:scale-[1.02] border dark:border-[rgba(255,255,255,0.06)]"
+                className="bg-white dark:bg-[#1e2235] rounded-[12px] shadow-[0_12px_24px_rgba(0,4,53,0.08)] overflow-hidden relative group cursor-pointer transition-all hover:scale-[1.02] border dark:border-[rgba(255,255,255,0.06)]"
               >
                 <div className="h-[180px] w-full bg-gradient-to-b from-[#1a1f2e] to-[#2d3748] relative">
                   <img

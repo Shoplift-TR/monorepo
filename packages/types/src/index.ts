@@ -54,6 +54,12 @@ export interface Order {
   deliveryAddress: Address;
   estimatedDeliveryTime: string | null;
   notes: string | null;
+  platformFee?: number;
+  rejectionReason?: string;
+  restaurant_lat?: number;
+  restaurant_lng?: number;
+  customer_lat?: number;
+  customer_lng?: number;
   createdAt: string;
   confirmedAt: string | null;
   deliveredAt: string | null;
@@ -74,6 +80,8 @@ export interface Restaurant {
   commissionRate: number;
   rating: number;
   totalOrders: number;
+  lat?: number;
+  lng?: number;
 }
 
 export interface MenuItem {

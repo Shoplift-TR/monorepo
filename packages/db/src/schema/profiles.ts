@@ -24,6 +24,7 @@ export const profiles = pgTable("profiles", {
   restaurantId: uuid("restaurant_id"),
   preferredLanguage: text("preferred_language").default("en"),
   usedPromoIds: text("used_promo_ids").array(),
+  telegramChatId: text("telegram_chat_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -7,6 +7,8 @@ import { useCart, CartModifier } from "@/contexts/CartContext";
 import { useRouter } from "@/lib/navigation";
 import Link from "next/link";
 import { showToast } from "@/lib/toast";
+import Map from "@/components/Map";
+import { MapPin } from "lucide-react";
 
 interface ClientMenuProps {
   restaurant: Restaurant;
@@ -194,6 +196,46 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                 {cat}
               </button>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* INFO CARD & MAP */}
+      <div className="max-w-5xl mx-auto px-4 mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
+          {restaurant.lat && restaurant.lng ? (
+            <Map
+              center={{
+                lat: Number(restaurant.lat),
+                lng: Number(restaurant.lng),
+              }}
+              markers={[
+                {
+                  lat: Number(restaurant.lat),
+                  lng: Number(restaurant.lng),
+                  color: "#E2103C",
+                },
+              ]}
+              zoom={15}
+              interactive={false}
+              className="h-[200px] w-full rounded-2xl shadow-lg border border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]"
+            />
+          ) : (
+            <div className="h-[200px] w-full bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400">
+              <MapPin className="w-8 h-8 opacity-20" />
+            </div>
+          )}
+        </div>
+        <div className="bg-white dark:bg-[#1e2235] p-6 rounded-2xl shadow-lg border border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] flex flex-col justify-center">
+          <h3 className="font-bold text-lg text-[#101744] dark:text-[#e8eaf0] mb-2">
+            Location
+          </h3>
+          <p className="text-sm text-zinc-500 mb-4">
+            {restaurant.address || "Address not available"}
+          </p>
+          <div className="flex items-center gap-2 text-xs font-bold text-[#92fc40]">
+            <div className="w-2 h-2 rounded-full bg-[#92fc40]" />
+            Open until 11:00 PM
           </div>
         </div>
       </div>

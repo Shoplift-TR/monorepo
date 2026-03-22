@@ -13,6 +13,8 @@ export default tseslint.config(
       "**/out/**",
       "**/build/**",
       "**/.turbo/**",
+      "infra/**/*.js",
+      "infra/**/*.ts",
     ],
   },
   js.configs.recommended,

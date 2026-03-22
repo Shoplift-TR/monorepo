@@ -5,6 +5,7 @@ import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,10 +30,12 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body className={inter.className}>
         <NextIntlClientProvider messages={messages}>
-          <AdminAuthProvider>{children}</AdminAuthProvider>
+          <AdminAuthProvider>
+            <NotificationProvider>{children}</NotificationProvider>
+          </AdminAuthProvider>
         </NextIntlClientProvider>
       </body>
     </html>

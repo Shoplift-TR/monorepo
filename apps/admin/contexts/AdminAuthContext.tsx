@@ -33,6 +33,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       const {
         data: { session },
       } = await supabaseAdmin.auth.getSession();
+
       if (session) {
         await fetchProfile(session.user.id);
       } else {
@@ -60,16 +61,13 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      // First check admin_profiles
-      const { data: adminProfile, error: adminError } = await supabaseAdmin
+      const { data: adminProfile } = await supabaseAdmin
         .from("admin_profiles")
         .select("*")
         .eq("id", userId)
         .single();
 
       if (adminProfile && adminProfile.is_active) {
-        // Log to audit
-        await logAction(userId, "LOGIN", "session", null);
         setUser({
           id: adminProfile.id,
           email: adminProfile.email,
@@ -78,18 +76,26 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
           restaurantId: adminProfile.restaurant_id,
         });
         setLoading(false);
+
+        // Fire-and-forget — never block auth flow
+        logAction(userId, "LOGIN", "session", null).catch((err) =>
+          console.warn("Audit log failed (non-critical):", err),
+        );
         return;
       }
 
-      // If not found in admin_profiles, check regular profiles for restaurant_admin
+      // Fallback to regular profiles
       const { data: regularProfile } = await supabaseAdmin
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .single();
 
-      if (regularProfile && regularProfile.role === "restaurant_admin") {
-        // Log to audit (could be customer profiles audit system in the real setup)
+      if (
+        regularProfile &&
+        (regularProfile.role === "restaurant_admin" ||
+          regularProfile.role === "super_admin")
+      ) {
         setUser({
           id: regularProfile.id,
           email: regularProfile.email,
@@ -101,11 +107,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Neither? Sign them out
+      // Not an admin — sign out
       await supabaseAdmin.auth.signOut();
       setUser(null);
     } catch (e) {
-      console.error(e);
+      console.error("fetchProfile error:", e);
       setUser(null);
     } finally {
       setLoading(false);
@@ -118,14 +124,27 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     targetType: string,
     targetId: string | null,
   ) => {
-    await supabaseAdmin.from("audit_logs").insert({
-      admin_id: adminId,
-      action,
-      target_type: targetType,
-      target_id: targetId,
-    });
+    try {
+      const {
+        data: { session },
+      } = await supabaseAdmin.auth.getSession();
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/admin/audit`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : {}),
+          },
+          body: JSON.stringify({ action, targetType, targetId }),
+        },
+      );
+    } catch {
+      // Completely silent
+    }
   };
-
   const login = async (email: string, password: string) => {
     const { data: authData, error } =
       await supabaseAdmin.auth.signInWithPassword({
@@ -137,11 +156,17 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       return { error: error.message };
     }
 
-    // Update last_login
-    await supabaseAdmin
-      .from("admin_profiles")
-      .update({ last_login_at: new Date().toISOString() })
-      .eq("id", authData.user.id);
+    // Fire-and-forget last_login update
+    (async () => {
+      try {
+        await supabaseAdmin
+          .from("admin_profiles")
+          .update({ last_login_at: new Date().toISOString() })
+          .eq("id", authData.user.id);
+      } catch (err: any) {
+        console.warn("last_login update failed:", err);
+      }
+    })();
 
     return { error: null };
   };

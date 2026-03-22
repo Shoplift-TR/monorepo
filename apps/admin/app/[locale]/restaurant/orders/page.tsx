@@ -40,6 +40,8 @@ export default function OrderQueuePage() {
   const { user } = useAdminAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -127,6 +129,23 @@ export default function OrderQueuePage() {
     }
   };
 
+  const sanitizeReason = (text: string) => {
+    return text.replace(/<[^>]*>?/gm, "").replace(/[;'"()]/g, "");
+  };
+
+  const handleReject = async () => {
+    if (!rejectingOrderId) return;
+    const cleanReason = sanitizeReason(rejectionReason);
+    const { data } = await adminApi.rejectOrder(rejectingOrderId, cleanReason);
+    if (data) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === rejectingOrderId ? data : o)),
+      );
+      setRejectingOrderId(null);
+      setRejectionReason("");
+    }
+  };
+
   const renderActionButtons = (order: any) => {
     switch (order.status) {
       case "PENDING":
@@ -139,7 +158,7 @@ export default function OrderQueuePage() {
               Accept
             </button>
             <button
-              onClick={() => handleUpdateStatus(order.id, "CANCELLED")}
+              onClick={() => setRejectingOrderId(order.id)}
               className="flex-1 py-2 rounded-lg border border-[#E2103C] text-[#E2103C] text-xs font-bold hover:bg-red-50 transition"
             >
               Reject
@@ -277,6 +296,39 @@ export default function OrderQueuePage() {
           );
         })}
       </div>
+      {rejectingOrderId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-zinc-900 mb-2">
+              Reject Order
+            </h3>
+            <p className="text-zinc-500 text-sm mb-4">
+              Please provide a reason. This will be shared with the customer.
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="w-full h-32 p-3 rounded-xl border border-zinc-200 focus:border-[#E2103C] focus:ring-1 focus:ring-[#E2103C] outline-none text-sm resize-none mb-6"
+              placeholder="e.g. Out of stock, Closing soon..."
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRejectingOrderId(null)}
+                className="flex-1 py-3 rounded-xl border border-zinc-200 text-zinc-600 font-bold hover:bg-zinc-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectionReason.trim()}
+                className="flex-1 py-3 rounded-xl bg-[#E2103C] text-white font-bold hover:bg-red-700 transition disabled:opacity-50"
+              >
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

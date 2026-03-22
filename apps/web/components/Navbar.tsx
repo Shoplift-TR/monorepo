@@ -42,10 +42,7 @@ export default function Navbar() {
   if (!mounted) {
     // Return a skeleton that matches server render exactly
     return (
-      <header
-        className="fixed top-0 w-full bg-white/80 backdrop-blur-xl z-50 
-                         border-b border-[rgba(199,197,208,0.15)] h-16"
-      >
+      <header className="fixed top-0 w-full bg-white/80 backdrop-blur-xl z-50 border-b border-[rgba(199,197,208,0.15)] h-16">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="text-[#101744] font-bold text-xl tracking-tighter">
             Shoplift
@@ -72,10 +69,7 @@ export default function Navbar() {
           <Link
             href="/"
             locale={locale === "en" ? "tr" : "en"}
-            className="text-[0.75rem] font-bold uppercase tracking-[0.05em] 
-                       text-[#46464f] dark:text-[#9ba3b8] px-3 py-1.5 rounded-full 
-                       bg-[#f3f4f5] dark:bg-[#222536] hover:bg-[#edeeef] 
-                       dark:hover:bg-[#272a3d] transition-colors"
+            className="text-[0.75rem] font-bold uppercase tracking-[0.05em] text-[#46464f] dark:text-[#9ba3b8] px-3 py-1.5 rounded-full bg-[#f3f4f5] dark:bg-[#222536] hover:bg-[#edeeef] dark:hover:bg-[#272a3d] transition-colors"
           >
             {locale === "en" ? "EN / TR" : "TR / EN"}
           </Link>
@@ -92,10 +86,7 @@ export default function Navbar() {
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="w-9 h-9 rounded-full bg-[#101744] dark:bg-[#92fc40] 
-                             flex items-center justify-center text-white dark:text-[#0b2000] 
-                             font-bold text-sm hover:bg-[#1a2456] dark:hover:bg-[#77df1e] 
-                             transition-colors focus:outline-none"
+                  className="w-9 h-9 rounded-full bg-[#101744] dark:bg-[#92fc40] flex items-center justify-center text-white dark:text-[#0b2000] font-bold text-sm hover:bg-[#1a2456] dark:hover:bg-[#77df1e] transition-colors focus:outline-none"
                   aria-label="Open settings"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -127,21 +118,9 @@ export default function Navbar() {
                 </button>
 
                 {dropdownOpen && (
-                  <div
-                    className="absolute right-0 top-[calc(100%+8px)] w-56 
-                                  bg-white dark:bg-[#1e2235] rounded-xl 
-                                  shadow-[0_12px_24px_rgba(0,4,53,0.12)] 
-                                  overflow-hidden z-50 border dark:border-[rgba(255,255,255,0.06)]"
-                  >
-                    <div
-                      className="px-4 py-3 bg-[#f8f9fa] dark:bg-[#222536] 
-                                    border-b border-[rgba(199,197,208,0.2)] 
-                                    dark:border-[rgba(255,255,255,0.06)]"
-                    >
-                      <p
-                        className="text-[0.875rem] font-bold text-[#101744] 
-                                    dark:text-[#e8eaf0] truncate"
-                      >
+                  <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-white dark:bg-[#1e2235] rounded-xl shadow-[0_12px_24px_rgba(0,4,53,0.12)] overflow-hidden z-50 border dark:border-[rgba(255,255,255,0.06)]">
+                    <div className="px-4 py-3 bg-[#f8f9fa] dark:bg-[#222536] border-b border-[rgba(199,197,208,0.2)] dark:border-[rgba(255,255,255,0.06)]">
+                      <p className="text-[0.875rem] font-bold text-[#101744] dark:text-[#e8eaf0] truncate">
                         {user.displayName}
                       </p>
                       {user.username && (
@@ -155,9 +134,7 @@ export default function Navbar() {
                       <Link
                         href="/orders"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-[0.875rem] 
-                                   text-[#191c1d] dark:text-[#e8eaf0] hover:bg-[#f3f4f5] 
-                                   dark:hover:bg-[#272a3d] transition-colors font-medium"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[0.875rem] text-[#191c1d] dark:text-[#e8eaf0] hover:bg-[#f3f4f5] dark:hover:bg-[#272a3d] transition-colors font-medium"
                       >
                         <svg
                           width="16"
@@ -183,9 +160,7 @@ export default function Navbar() {
                       <Link
                         href="/settings"
                         onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-[0.875rem] 
-                                   text-[#191c1d] dark:text-[#e8eaf0] hover:bg-[#f3f4f5] 
-                                   dark:hover:bg-[#272a3d] transition-colors font-medium"
+                        className="flex items-center gap-3 px-4 py-2.5 text-[0.875rem] text-[#191c1d] dark:text-[#e8eaf0] hover:bg-[#f3f4f5] dark:hover:bg-[#272a3d] transition-colors font-medium"
                       >
                         <svg
                           width="16"
@@ -214,9 +189,7 @@ export default function Navbar() {
 
                       <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[0.875rem] 
-                                   text-[#ba1a1a] dark:text-[#ff897d] hover:bg-[#fff5f5] 
-                                   dark:hover:bg-[#3d2727] transition-colors font-medium"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[0.875rem] text-[#ba1a1a] dark:text-[#ff897d] hover:bg-[#fff5f5] dark:hover:bg-[#3d2727] transition-colors font-medium"
                       >
                         <svg
                           width="16"
@@ -243,17 +216,13 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/login"
-                className="text-[0.875rem] font-medium text-[#191c1d] dark:text-[#e8eaf0] 
-                           px-4 py-2 rounded-full hover:bg-[#f3f4f5] dark:hover:bg-[#222536] 
-                           transition-colors"
+                className="text-[0.875rem] font-medium text-[#191c1d] dark:text-[#e8eaf0] px-4 py-2 rounded-full hover:bg-[#f3f4f5] dark:hover:bg-[#222536] transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="text-[0.875rem] font-bold text-white dark:text-[#0b2000] 
-                           bg-[#101744] dark:bg-[#92fc40] px-4 py-2 rounded-full 
-                           hover:bg-[#1a2456] dark:hover:bg-[#77df1e] transition-colors"
+                className="text-[0.875rem] font-bold text-white dark:text-[#0b2000] bg-[#101744] dark:bg-[#92fc40] px-4 py-2 rounded-full hover:bg-[#1a2456] dark:hover:bg-[#77df1e] transition-colors"
               >
                 Create Account
               </Link>

@@ -1,9 +1,12 @@
 {
   "login": {
     "title": "Yönetici Portalı",
-    "email": "E-posta",
+    "email": "E-posta Adresi",
     "password": "Şifre",
-    "submit": "Giriş Yap"
+    "submit": "Giriş Yap",
+    "welcomeBack": "Tekrar hoş geldiniz",
+    "signInToAccount": "Yönetici hesabınıza giriş yapın.",
+    "authorizedPersonnelOnly": "Yalnızca yetkili personel. Yöneticiler süper yöneticiler tarafından atanır."
   },
   "sidebar": {
     "orders": "Siparişler",

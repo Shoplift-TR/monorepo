@@ -1,9 +1,12 @@
 {
   "login": {
-    "title": "Admin Portal",
-    "email": "Email",
+    "title": "Administrator Portal",
+    "email": "Email Address",
     "password": "Password",
-    "submit": "Log In"
+    "submit": "Log In",
+    "welcomeBack": "Welcome back",
+    "signInToAccount": "Log in to your administrator account.",
+    "authorizedPersonnelOnly": "Authorized personnel only. Managers are appointed by super-managers."
   },
   "sidebar": {
     "orders": "Orders",

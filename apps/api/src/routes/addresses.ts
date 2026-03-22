@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { supabase } from "../lib/supabase.js";
 import { verifyAuth } from "../middleware/auth.js";
+import { db, addresses } from "@shoplift/db";
+import { eq, desc } from "drizzle-orm";
 
 interface CreateAddressBody {
   label: string;
@@ -19,18 +20,13 @@ export default async function addressRoutes(fastify: FastifyInstance) {
   fastify.get("/", { preHandler: [verifyAuth] }, async (request, reply) => {
     const user = (request as any).user;
 
-    const { data, error } = await supabase
-      .from("addresses")
-      .select("*")
-      .eq("profile_id", user.uid)
-      .order("created_at", { ascending: false });
+    const result = await db
+      .select()
+      .from(addresses)
+      .where(eq(addresses.profileId, user.uid))
+      .orderBy(desc(addresses.createdAt));
 
-    if (error) {
-      request.log.error(error);
-      return reply.status(500).send({ success: false, error: error.message });
-    }
-
-    return reply.send({ success: true, data });
+    return reply.send({ success: true, data: result });
   });
 
   /**
@@ -45,23 +41,20 @@ export default async function addressRoutes(fastify: FastifyInstance) {
       const { label, street, district, city, lat, lng } = request.body;
 
       try {
-        const { data, error } = await supabase
-          .from("addresses")
-          .insert({
-            profile_id: user.uid,
+        const result = await db
+          .insert(addresses)
+          .values({
+            profileId: user.uid,
             label,
             street,
             district,
             city,
-            lat: lat || 0, // Fallback if not provided, though prompt didn't specify
-            lng: lng || 0, // Fallback
+            lat: lat?.toString(),
+            lng: lng?.toString(),
           })
-          .select()
-          .single();
+          .returning();
 
-        if (error) throw error;
-
-        return reply.status(201).send({ success: true, data });
+        return reply.status(201).send({ success: true, data: result[0] });
       } catch (error: any) {
         request.log.error(error);
         return reply.status(500).send({

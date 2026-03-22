@@ -1,6 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { supabase } from "../lib/supabase.js";
 import { verifyAuth } from "../middleware/auth.js";
+import { db, profiles } from "@shoplift/db";
+import { eq, and, ne, ilike } from "drizzle-orm";
 
 interface RegisterBody {
   email: string;
@@ -84,12 +86,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         // Profile row is created automatically via the trigger.
         // Update the phone specifically as requested.
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({ phone })
-          .eq("id", user.id);
-
-        if (profileError) {
+        try {
+          await db
+            .update(profiles)
+            .set({ phone })
+            .where(eq(profiles.id, user.id));
+        } catch (profileError) {
           request.log.warn({ profileError }, "Profile phone update failed");
         }
 
@@ -272,6 +274,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       error: null,
     });
   });
+
   // PUT /auth/profile/username
   fastify.put<{ Body: { username: string } }>(
     "/profile/username",
@@ -294,37 +297,40 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("id")
-        .ilike("username", sanitized)
-        .neq("id", user.uid)
-        .maybeSingle();
+      try {
+        const existingResult = await db
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(
+            and(ilike(profiles.username, sanitized), ne(profiles.id, user.uid)),
+          )
+          .limit(1);
 
-      if (existing) {
-        return reply.status(409).send({
-          success: false,
-          data: null,
-          error: "Username already taken",
-        });
-      }
+        if (existingResult.length > 0) {
+          return reply.status(409).send({
+            success: false,
+            data: null,
+            error: "Username already taken",
+          });
+        }
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ username: sanitized })
-        .eq("id", user.uid)
-        .select()
-        .single();
+        const updatedResult = await db
+          .update(profiles)
+          .set({ username: sanitized })
+          .where(eq(profiles.id, user.uid))
+          .returning();
 
-      if (error) {
+        const data = updatedResult[0];
+
+        return reply.send({ success: true, data, error: null });
+      } catch (error: any) {
+        request.log.error(error);
         return reply.status(500).send({
           success: false,
           data: null,
-          error: error.message,
+          error: error.message || "Failed to update username",
         });
       }
-
-      return reply.send({ success: true, data, error: null });
     },
   );
 
@@ -355,39 +361,48 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Ensure profile exists (OAuth users may not have gone through /register)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
+      try {
+        // Ensure profile exists (OAuth users may not have gone through /register)
+        const profileResult = await db
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(eq(profiles.id, user.id))
+          .limit(1);
 
-      if (!profile) {
-        // Create profile for OAuth user if trigger didn't fire
-        await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email,
-          display_name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email?.split("@")[0] ||
-            "User",
-          role: "customer",
-          preferred_language: "en",
-          created_at: new Date().toISOString(),
+        const profile = profileResult[0];
+
+        if (!profile) {
+          // Create profile for OAuth user if trigger didn't fire
+          await db.insert(profiles).values({
+            id: user.id,
+            email: user.email || "",
+            displayName:
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "User",
+            role: "customer",
+            preferredLanguage: "en",
+          });
+        }
+
+        // Set the httpOnly cookie exactly like /auth/login does
+        reply.setCookie("token", access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 3600,
+        });
+
+        return reply.send({ success: true });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to process OAuth callback",
         });
       }
-
-      // Set the httpOnly cookie exactly like /auth/login does
-      reply.setCookie("token", access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 3600,
-      });
-
-      return reply.send({ success: true });
     },
   );
 }

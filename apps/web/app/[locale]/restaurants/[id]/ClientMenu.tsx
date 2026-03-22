@@ -1,15 +1,12 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Restaurant, MenuItem } from "@shoplift/types";
 import { useTranslations } from "next-intl";
-import {
-  useCart,
-  CartModifier,
-  CartModifierOption,
-} from "@/contexts/CartContext";
-import { Link } from "@/lib/navigation";
-import { useRouter } from "next/navigation";
+import { useCart, CartModifier } from "@/contexts/CartContext";
+import { useRouter } from "@/lib/navigation";
+import Link from "next/link";
+import { showToast } from "@/lib/toast";
 
 interface ClientMenuProps {
   restaurant: Restaurant;
@@ -21,6 +18,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
   const t = useTranslations("restaurants");
   const { addItem, totalItems, totalPrice, restaurantId } = useCart();
   const router = useRouter();
+  const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const name =
     (restaurant.name as any)[locale] || restaurant.name["tr"] || "Restaurant";
@@ -29,28 +27,24 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
     restaurant.description["tr"] ||
     "";
 
-  // Group menu by categories
   const categories = useMemo(() => {
-    const cats = new Set(menu.map((i) => i.category || "General"));
-    return Array.from(cats);
+    return Array.from(new Set(menu.map((i) => i.category || "General")));
   }, [menu]);
 
   const [activeCategory, setActiveCategory] = useState(categories[0] || "");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
-  // Auto-scroll to category logic
   const scrollToCategory = (category: string) => {
     setActiveCategory(category);
-    const element = document.getElementById(`cat-${category}`);
-    if (element) {
-      const y = element.getBoundingClientRect().top + window.scrollY - 150;
+    const el = categoryRefs.current[category];
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - 140;
       window.scrollTo({ top: y, behavior: "smooth" });
     }
   };
 
-  const handleOpenModifiers = (item: MenuItem) => {
+  const handleAddItem = (item: MenuItem) => {
     if (!item.modifiers || item.modifiers.length === 0) {
-      // Add instantly
       addItem(restaurant.id, {
         itemId: item.id,
         name: item.name,
@@ -58,148 +52,302 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
         quantity: 1,
         selectedModifiers: [],
       });
+      showToast.success("Added to cart");
       return;
     }
     setSelectedItem(item);
   };
 
+  const deliveryFee = (restaurant as any).deliveryFee ?? 0;
+
   return (
-    <div className="min-h-screen bg-zinc-50 pb-32">
-      {/* Header section (Yemeksepeti style white background with bottom border) */}
-      <div className="bg-white px-4 pt-4 pb-4 shadow-sm relative sticky top-0 md:static z-20">
-        <div className="flex gap-4 items-center">
-          <div className="w-16 h-16 bg-zinc-100 rounded-lg overflow-hidden border border-zinc-200 shadow-sm shrink-0">
-            <img
-              src={
-                restaurant.logo ||
-                "https://placehold.co/200x200/eee/999?text=Logo"
-              }
-              alt={name}
-              className="w-full h-full object-cover"
+    <div className="min-h-screen bg-[var(--surface)] dark:bg-[#0f1117] pb-32">
+      {/* HERO — full width dark editorial */}
+      <div
+        className="relative w-full h-[320px] md:h-[400px] overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, #080c24 0%, #0a1628 50%, #0d2137 100%)",
+        }}
+      >
+        {/* Background image if restaurant has logo */}
+        {restaurant.logo && (
+          <img
+            src={restaurant.logo}
+            alt={name}
+            className="absolute inset-0 w-full h-full object-cover opacity-20"
+          />
+        )}
+
+        {/* Dark overlay gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#080c24] via-transparent to-transparent" />
+
+        {/* Back button */}
+        <button
+          onClick={() => router.push("/restaurants")}
+          className="absolute top-6 left-6 w-10 h-10 rounded-full 
+                     bg-white/10 backdrop-blur-sm flex items-center justify-center
+                     hover:bg-white/20 transition-colors z-10"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path
+              d="M12 15L7 10L12 5"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-zinc-900 leading-tight">
-              {name}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[#FFB800] text-sm">★</span>
-              <span className="text-sm font-bold text-zinc-800">
-                {restaurant.rating?.toFixed(1) || "New"}
-              </span>
-              <span className="text-zinc-400 text-xs">
-                ({restaurant.totalOrders}+ orders)
-              </span>
-            </div>
-            <p className="text-sm text-zinc-500 mt-1 line-clamp-2 leading-snug">
-              {desc}
-            </p>
-          </div>
-        </div>
-      </div>
+          </svg>
+        </button>
 
-      {/* Categories Tabs - Sticky below navigation */}
-      <div className="sticky top-[73px] bg-white border-b border-zinc-200 z-10 shadow-sm w-full">
-        <div className="flex overflow-x-auto no-scrollbar items-center gap-6 px-4 h-14">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => scrollToCategory(cat)}
-              className={`whitespace-nowrap font-bold text-sm tracking-tight border-b-2 h-full transition-colors ${
-                activeCategory === cat
-                  ? "border-[#E2103C] text-[#E2103C]"
-                  : "border-transparent text-zinc-500 hover:text-zinc-800"
-              }`}
+        {/* Restaurant info overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+          <div className="max-w-5xl mx-auto flex items-end gap-4">
+            {/* Logo circle */}
+            <div
+              className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm 
+                            border-2 border-white/20 flex-shrink-0 overflow-hidden"
             >
-              {cat}
-            </button>
-          ))}
+              {restaurant.logo ? (
+                <img
+                  src={restaurant.logo}
+                  alt={name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div
+                  className="w-full h-full bg-[#92fc40]/20 flex items-center 
+                                justify-center"
+                >
+                  <span className="text-[#92fc40] font-bold text-xl">
+                    {name.charAt(0)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h1
+                className="text-white font-extrabold text-2xl md:text-3xl 
+                             tracking-[-0.04em] leading-tight mb-1"
+              >
+                {name}
+              </h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
+                    fill="#f59e0b"
+                  >
+                    <path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.3l-3.7 1.9.7-4.1-3-2.9 4.2-.7z" />
+                  </svg>
+                  <span className="text-white font-bold text-sm">
+                    {restaurant.rating?.toFixed(1) || "New"}
+                  </span>
+                </div>
+                <span className="text-white/40">•</span>
+                <span className="text-white/70 text-sm">
+                  {(restaurant as any).averageDeliveryMinutes || 20} min
+                </span>
+                <span className="text-white/40">•</span>
+                <span
+                  className={`text-sm font-bold ${
+                    Number(deliveryFee) === 0
+                      ? "text-[#92fc40]"
+                      : "text-white/70"
+                  }`}
+                >
+                  {Number(deliveryFee) === 0
+                    ? "Free delivery"
+                    : `₺${deliveryFee} delivery`}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Menu List */}
-      <div className="w-full max-w-[500px] mx-auto bg-white min-h-screen">
-        {categories.map((cat) => (
-          <div key={cat} id={`cat-${cat}`} className="pt-6">
-            <h3 className="px-4 text-xl font-bold tracking-tight text-zinc-900 mb-4">
-              {cat}
-            </h3>
-            <div className="flex flex-col border-t border-zinc-100">
-              {menu
-                .filter((item) => (item.category || "General") === cat)
-                .map((item) => {
+      {/* CATEGORY TAB BAR — sticky */}
+      <div
+        className="sticky top-16 z-30 bg-white/80 dark:bg-[#1a1d2e]/80 
+                      backdrop-blur-[24px] border-b border-[rgba(0,4,53,0.06)]
+                      dark:border-[rgba(255,255,255,0.06)]"
+      >
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="flex gap-0 overflow-x-auto no-scrollbar">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => scrollToCategory(cat)}
+                className={`
+                  flex-shrink-0 px-5 py-4 text-sm font-bold transition-all
+                  border-b-2 whitespace-nowrap
+                  ${
+                    activeCategory === cat
+                      ? "border-[#92fc40] text-[#101744] dark:text-[#e8eaf0]"
+                      : "border-transparent text-[#5e5e5e] dark:text-[#9ba3b8] hover:text-[#101744] dark:hover:text-[#e8eaf0]"
+                  }
+                `}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* MENU CONTENT */}
+      <div className="max-w-5xl mx-auto px-4 pt-8">
+        {categories.map((cat) => {
+          const catItems = menu.filter(
+            (item) => (item.category || "General") === cat,
+          );
+          return (
+            <div
+              key={cat}
+              ref={(el) => {
+                categoryRefs.current[cat] = el;
+              }}
+              className="mb-12"
+            >
+              {/* Category heading */}
+              <div className="mb-6">
+                <h2
+                  className="text-[#101744] dark:text-[#e8eaf0] font-extrabold 
+                               text-xl tracking-[-0.04em]"
+                >
+                  {cat}
+                </h2>
+                <div className="h-[2px] w-8 bg-[#92fc40] mt-1" />
+              </div>
+
+              {/* Items grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {catItems.map((item) => {
                   const itemName =
-                    (item.name as any)[locale] || item.name["tr"];
+                    (item.name as any)[locale] || (item.name as any)["tr"];
                   const itemDesc =
                     (item.description as any)[locale] ||
-                    item.description["tr"] ||
+                    (item.description as any)["tr"] ||
                     "";
 
                   return (
                     <div
                       key={item.id}
-                      className="flex p-4 border-b border-zinc-100 hover:bg-zinc-50 transition-colors"
+                      className="bg-white dark:bg-[#1e2235] rounded-[12px]
+                                 shadow-[0_12px_24px_rgba(0,4,53,0.08)]
+                                 overflow-hidden flex gap-0"
                     >
-                      <div className="flex-1 pr-4">
-                        <h4 className="font-bold text-[15px] text-zinc-900 mb-1">
-                          {itemName}
-                        </h4>
-                        {itemDesc && (
-                          <p className="text-[13px] text-zinc-500 line-clamp-2 leading-relaxed mb-2">
-                            {itemDesc}
-                          </p>
-                        )}
-                        <div className="font-bold text-[#E2103C] mt-2">
-                          ₺{item.price.toFixed(2)}
-                        </div>
+                      {/* Image */}
+                      <div className="w-[120px] flex-shrink-0 relative">
+                        <img
+                          src={
+                            item.imageUrl ||
+                            "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&auto=format&fit=crop"
+                          }
+                          alt={itemName}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <div className="w-[100px] shrink-0 flex flex-col items-center justify-between">
-                        <div className="w-full aspect-square bg-zinc-100 rounded-xl overflow-hidden mb-2 shadow-[0_2px_8px_rgba(0,0,0,0.06)] relative border border-zinc-100">
-                          <img
-                            src={
-                              item.imageUrl ||
-                              "https://placehold.co/200x200/fafafa/999?text=Item"
-                            }
-                            alt={itemName}
-                            className="w-full h-full object-cover mix-blend-multiply"
-                          />
+
+                      {/* Content */}
+                      <div
+                        className="flex-1 p-4 flex flex-col justify-between 
+                                      min-w-0"
+                      >
+                        <div>
+                          <h3
+                            className="text-[#101744] dark:text-[#e8eaf0] 
+                                         font-bold text-[0.9375rem] leading-tight mb-1"
+                          >
+                            {itemName}
+                          </h3>
+                          {itemDesc && (
+                            <p
+                              className="text-[#5e5e5e] dark:text-[#9ba3b8] 
+                                          text-xs leading-relaxed line-clamp-2"
+                            >
+                              {itemDesc}
+                            </p>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleOpenModifiers(item)}
-                          className="w-full h-8 flex items-center justify-center bg-white border border-[#E2103C] text-[#E2103C] font-bold text-xs rounded-full hover:bg-[#FFF0F3] active:bg-[#FFE3E8] transition-colors shadow-sm"
-                        >
-                          + {t("addToCart").replace("{price}", "")}
-                        </button>
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-[#92fc40] font-extrabold text-base">
+                            ₺{Number(item.price).toFixed(2)}
+                          </span>
+                          <button
+                            onClick={() => handleAddItem(item)}
+                            className="w-8 h-8 rounded-full bg-[#101744] dark:bg-[#92fc40]
+                                       flex items-center justify-center
+                                       hover:bg-[#1a2456] dark:hover:bg-[#77df1e]
+                                       transition-colors active:scale-95"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 14 14"
+                              fill="none"
+                            >
+                              <path
+                                d="M7 2v10M2 7h10"
+                                stroke={
+                                  typeof document !== "undefined" &&
+                                  document.documentElement.classList.contains(
+                                    "dark",
+                                  )
+                                    ? "#0b2000"
+                                    : "white"
+                                }
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Sticky View Cart Footer */}
+      {/* STICKY CART BAR */}
       {totalItems > 0 && restaurantId === restaurant.id && (
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-200 p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] z-40 transform translate-y-0 transition-transform md:max-w-[500px] md:left-1/2 md:-translate-x-1/2 md:pb-6">
-          <Link
-            href="/checkout"
-            className="flex items-center justify-between w-full h-[52px] px-5 rounded-full bg-[#E2103C] hover:bg-[#cc0d35] transition-colors text-white shadow-md active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 text-white font-bold h-7 px-3 rounded-full flex items-center justify-center text-sm">
-                {totalItems}
+        <div
+          className="fixed bottom-0 left-0 w-full p-4 z-40
+                        bg-white/80 dark:bg-[#1a1d2e]/80 backdrop-blur-[24px]
+                        border-t border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]"
+        >
+          <div className="max-w-5xl mx-auto">
+            <Link
+              href="/checkout"
+              className="flex items-center justify-between w-full h-[52px] px-5 
+                         rounded-full bg-[#101744] hover:bg-[#1a2456] 
+                         transition-colors text-white shadow-md active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="bg-[#92fc40] text-[#0b2000] font-bold h-7 px-3 
+                                rounded-full flex items-center justify-center text-sm"
+                >
+                  {totalItems}
+                </div>
+                <span className="font-bold text-[0.9375rem]">View Cart</span>
               </div>
-              <span className="font-bold text-[15px]">{t("viewCart")}</span>
-            </div>
-            <span className="font-bold text-[15px]">
-              ₺{totalPrice.toFixed(2)}
-            </span>
-          </Link>
+              <span className="font-bold text-[0.9375rem]">
+                ₺{totalPrice.toFixed(2)}
+              </span>
+            </Link>
+          </div>
         </div>
       )}
 
-      {/* Modifier Modal */}
+      {/* MODIFIER MODAL */}
       {selectedItem && (
         <ModifierModal
           item={selectedItem}
@@ -208,13 +356,13 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
           restaurantId={restaurant.id}
           t={t}
           addItem={addItem}
+          onAdded={() => showToast.success("Added to cart")}
         />
       )}
     </div>
   );
 }
 
-// Separate component for Modifier Modal
 function ModifierModal({
   item,
   onClose,
@@ -222,6 +370,7 @@ function ModifierModal({
   restaurantId,
   t,
   addItem,
+  onAdded,
 }: {
   item: MenuItem;
   onClose: () => void;
@@ -229,25 +378,25 @@ function ModifierModal({
   restaurantId: string;
   t: any;
   addItem: any;
+  onAdded: () => void;
 }) {
-  const itemName = (item.name as any)[locale] || item.name["tr"];
-
-  // State maps modifier_group_id -> array of selected options
+  const itemName = (item.name as any)[locale] || (item.name as any)["tr"];
   const [selections, setSelections] = useState<Record<string, any[]>>({});
 
   const handleOptionToggle = (modGroup: any, option: any) => {
     const currentList = selections[modGroup.id] || [];
-    const isSelected = currentList.some((o) => o.name.tr === option.name.tr);
+    const isSelected = currentList.some(
+      (o) => (o.name as any).tr === (option.name as any).tr,
+    );
 
     if (modGroup.maxSelections === 1) {
-      // Radio swap
       setSelections({ ...selections, [modGroup.id]: [option] });
     } else {
       if (isSelected) {
         setSelections({
           ...selections,
           [modGroup.id]: currentList.filter(
-            (o) => o.name.tr !== option.name.tr,
+            (o) => (o.name as any).tr !== (option.name as any).tr,
           ),
         });
       } else {
@@ -262,17 +411,17 @@ function ModifierModal({
   };
 
   const calculateItemTotal = () => {
-    let total = item.price;
+    let total = Number(item.price);
     Object.values(selections).forEach((opts) => {
       opts.forEach((o) => {
-        total += o.price;
+        total += Number(o.price);
       });
     });
     return total;
   };
 
   const isFormValid = () => {
-    return (item.modifiers || []).every((mod) => {
+    return ((item.modifiers as any[]) || []).every((mod) => {
       if (!mod.required) return true;
       const count = (selections[mod.id] || []).length;
       return count > 0;
@@ -282,8 +431,7 @@ function ModifierModal({
   const handleAddToCart = () => {
     if (!isFormValid()) return;
 
-    // Create CartModifier array
-    const selectedMods: CartModifier[] = (item.modifiers || [])
+    const selectedMods: CartModifier[] = ((item.modifiers as any[]) || [])
       .filter((m) => selections[m.id] && selections[m.id].length > 0)
       .map((m) => ({
         id: m.id,
@@ -298,107 +446,129 @@ function ModifierModal({
       quantity: 1,
       selectedModifiers: selectedMods,
     });
+    onAdded();
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-[500px] bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Modal Header */}
-        <div className="p-4 border-b border-zinc-100 flex items-center justify-between shrink-0">
-          <h2 className="text-lg font-bold text-zinc-900 truncate pr-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-[500px] bg-white dark:bg-[#1e2235] sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="p-5 border-b border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-[#101744] dark:text-[#e8eaf0] truncate pr-4">
             {itemName}
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 rounded-full shrink-0 transition-colors"
+            className="w-10 h-10 flex items-center justify-center bg-[#f3f4f5] dark:bg-[#222536] text-[#101744] dark:text-[#e8eaf0] rounded-full transition-colors"
           >
-            ×
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path
+                d="M18 6L6 18M6 6l12 12"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto w-full pb-4">
-          {(item.modifiers || []).map((mod) => {
-            const modName = (mod.name as any)[locale] || mod.name["tr"];
-            const selectedCount = (selections[mod.id] || []).length;
-
+        <div className="flex-1 overflow-y-auto p-5">
+          {((item.modifiers as any[]) || []).map((mod) => {
+            const modName =
+              (mod.name as any)[locale] || (mod.name as any)["tr"];
             return (
-              <div
-                key={mod.id}
-                className="w-full border-b border-zinc-100 pb-4 last:border-0 pt-4 px-4 bg-white"
-              >
-                <div className="flex justify-between items-baseline mb-3">
-                  <h3 className="font-bold text-[16px] text-zinc-900 leading-tight">
-                    {modName}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-sm ${
-                        mod.required
-                          ? "bg-[#FFF0F3] text-[#E2103C]"
-                          : "bg-zinc-100 text-zinc-500"
-                      }`}
-                    >
-                      {mod.required ? t("required") : t("optional")}
-                    </span>
+              <div key={mod.id} className="mb-8 last:mb-0">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="font-bold text-base text-[#101744] dark:text-[#e8eaf0]">
+                      {modName}
+                    </h3>
+                    <p className="text-xs text-[#5e5e5e] dark:text-[#9ba3b8] mt-0.5">
+                      {t("maxSelections", { max: mod.maxSelections })}
+                    </p>
                   </div>
-                </div>
-                <div className="mb-3">
-                  <p className="text-xs text-zinc-500 font-medium">
-                    {t("maxSelections", { max: mod.maxSelections })}
-                  </p>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      mod.required
+                        ? "bg-[#92fc40]/10 text-[#0b2000] dark:text-[#92fc40]"
+                        : "bg-[#edeeef] dark:bg-[#222536] text-[#5e5e5e] dark:text-[#9ba3b8]"
+                    }`}
+                  >
+                    {mod.required ? t("required") : t("optional")}
+                  </span>
                 </div>
 
-                <div className="flex flex-col">
-                  {mod.options.map((opt, i) => {
-                    const optName = (opt.name as any)[locale] || opt.name["tr"];
+                <div className="space-y-2">
+                  {mod.options.map((opt: any, i: number) => {
+                    const optName =
+                      (opt.name as any)[locale] || (opt.name as any)["tr"];
                     const isSelected = (selections[mod.id] || []).some(
-                      (o) => o.name.tr === opt.name.tr,
+                      (o) => (o.name as any).tr === (opt.name as any).tr,
                     );
 
                     return (
                       <label
                         key={i}
-                        className="flex items-center justify-between p-3 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50/50 mb-2 last:mb-0 transition-colors"
+                        className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-[#92fc40] bg-[#92fc40]/5"
+                            : "border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] bg-transparent"
+                        }`}
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-5 h-5 flex items-center justify-center border transition-colors ${
+                            className={`w-5 h-5 flex items-center justify-center border transition-all ${
                               mod.maxSelections === 1
                                 ? "rounded-full"
                                 : "rounded"
                             } ${
                               isSelected
-                                ? "border-[#E2103C] bg-[#E2103C]"
-                                : "border-zinc-300 bg-white"
+                                ? "border-[#92fc40] bg-[#92fc40]"
+                                : "border-[#c7c5d0] dark:border-[#46464f] bg-transparent"
                             }`}
                           >
                             {isSelected && (
                               <svg
-                                className="w-3 h-3 text-white"
+                                width="12"
+                                height="12"
+                                viewBox="0 0 12 12"
                                 fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={3}
                               >
                                 <path
+                                  d="M10 3L4.5 8.5L2 6"
+                                  stroke={
+                                    mod.maxSelections === 1
+                                      ? "#0b2000"
+                                      : "#0b2000"
+                                  }
+                                  strokeWidth="2.5"
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
-                                  d="M5 13l4 4L19 7"
                                 />
                               </svg>
                             )}
                           </div>
-                          <span className="text-[15px] font-medium text-zinc-800">
+                          <span className="text-sm font-bold text-[#101744] dark:text-[#e8eaf0]">
                             {optName}
                           </span>
                         </div>
                         {opt.price > 0 && (
-                          <span className="text-sm font-medium text-zinc-500">
-                            +₺{opt.price.toFixed(2)}
+                          <span className="text-sm font-extrabold text-[#92fc40]">
+                            +₺{Number(opt.price).toFixed(2)}
                           </span>
                         )}
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isSelected}
+                          onChange={() => handleOptionToggle(mod, opt)}
+                        />
                       </label>
                     );
                   })}
@@ -408,12 +578,11 @@ function ModifierModal({
           })}
         </div>
 
-        {/* Modal Footer (Sticky) */}
-        <div className="p-4 border-t border-zinc-200 bg-white sm:rounded-b-2xl shrink-0">
+        <div className="p-5 border-t border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] bg-white dark:bg-[#1e2235] sm:rounded-b-2xl">
           <button
             onClick={handleAddToCart}
             disabled={!isFormValid()}
-            className="w-full h-[52px] rounded-full bg-[#E2103C] text-white font-bold text-[15px] hover:bg-[#cc0d35] active:bg-[#a60b2b] transition-colors shadow-md disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none flex items-center justify-center"
+            className="w-full h-12 rounded-full bg-[#92fc40] text-[#0b2000] font-extrabold text-sm hover:bg-[#77df1e] transition-colors shadow-md disabled:bg-[#f3f4f5] dark:disabled:bg-[#222536] disabled:text-[#5e5e5e] disabled:shadow-none flex items-center justify-center"
           >
             {t("addToCart").replace(
               "{price}",

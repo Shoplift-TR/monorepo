@@ -1,0 +1,25 @@
+{
+  "name": "@shoplift/db",
+  "version": "0.0.1",
+  "description": "Drizzle ORM schema and client for Shoplift",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.30.10",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.0.0"
+  },
+  "type": "module"
+}

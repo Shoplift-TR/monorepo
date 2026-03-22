@@ -3,6 +3,15 @@ import { supabase } from "../lib/supabase.js";
 import { notifyNewOrder, notifyOrderStatusChange } from "../lib/notifier.js";
 import { validatePromo } from "../lib/promos.js";
 import { verifyAuth } from "../middleware/auth.js";
+import {
+  db,
+  orders,
+  menuItems,
+  addresses,
+  restaurants,
+  profiles,
+} from "@shoplift/db";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
 
 interface OrderItem {
@@ -35,18 +44,22 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const user = (request as any).user;
 
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("customer_id", user.uid)
-        .order("created_at", { ascending: false })
-        .limit(20);
+      try {
+        const result = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.customerId, user.uid))
+          .orderBy(desc(orders.createdAt))
+          .limit(20);
 
-      if (error) {
-        return reply.status(500).send({ success: false, error: error.message });
+        return reply.send({ success: true, data: result });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to fetch order history",
+        });
       }
-
-      return reply.send({ success: true, data });
     },
   );
 
@@ -79,17 +92,20 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       try {
         // 2. Fetch all menu items for the provided itemIds
         const itemIds = items.map((i) => i.itemId);
-        const { data: menuItems, error: menuError } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("restaurant_id", restaurantId)
-          .eq("is_available", true)
-          .in("id", itemIds);
+        const menuItemsResult = await db
+          .select()
+          .from(menuItems)
+          .where(
+            and(
+              eq(menuItems.restaurantId, restaurantId),
+              eq(menuItems.isAvailable, true),
+              inArray(menuItems.id, itemIds),
+            ),
+          );
 
         if (
-          menuError ||
-          !menuItems ||
-          menuItems.length !== Array.from(new Set(itemIds)).length
+          !menuItemsResult ||
+          menuItemsResult.length !== Array.from(new Set(itemIds)).length
         ) {
           return reply.status(400).send({
             success: false,
@@ -100,7 +116,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         // 3. Recompute prices server-side
         let subtotal = 0;
         const summarizedItems = items.map((item) => {
-          const menuItem = menuItems.find((mi) => mi.id === item.itemId);
+          const menuItem = menuItemsResult.find((mi) => mi.id === item.itemId);
           if (!menuItem) throw new Error(`Item ${item.itemId} not found`);
 
           let modifiersTotal = 0;
@@ -121,14 +137,20 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         });
 
         // 4. Fetch the delivery address
-        const { data: address, error: addressError } = await supabase
-          .from("addresses")
-          .select("*")
-          .eq("id", deliveryAddressId)
-          .eq("profile_id", user.uid)
-          .single();
+        const addressResult = await db
+          .select()
+          .from(addresses)
+          .where(
+            and(
+              eq(addresses.id, deliveryAddressId),
+              eq(addresses.profileId, user.uid),
+            ),
+          )
+          .limit(1);
 
-        if (addressError || !address) {
+        const address = addressResult[0];
+
+        if (!address) {
           return reply
             .status(400)
             .send({ success: false, error: "Invalid delivery address" });
@@ -150,7 +172,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
 
         // 6. Calculate total
-        const deliveryFee = 30;
+        const restaurantResult = await db
+          .select({ deliveryFee: restaurants.deliveryFee })
+          .from(restaurants)
+          .where(eq(restaurants.id, restaurantId))
+          .limit(1);
+
+        const deliveryFee = Number(restaurantResult[0]?.deliveryFee ?? 0);
         const total = subtotal + deliveryFee - discount;
 
         // 7. Build deliveryAddressSnapshot
@@ -165,45 +193,47 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
 
         // 9. Insert into orders table
-        const { data: order, error: orderError } = await supabase
-          .from("orders")
-          .insert({
-            customer_id: user.uid,
-            restaurant_id: restaurantId,
+        const orderResult = await db
+          .insert(orders)
+          .values({
+            customerId: user.uid,
+            restaurantId: restaurantId,
             items: summarizedItems,
             status: "PENDING",
-            payment_method: paymentMethod,
-            payment_gateway: paymentGateway,
-            payment_intent_id: paymentIntentId,
-            subtotal,
-            delivery_fee: deliveryFee,
-            discount,
-            total,
-            promo_code: promoCode,
-            delivery_address_id: deliveryAddressId,
-            delivery_address_snapshot: deliveryAddressSnapshot,
+            paymentMethod: paymentMethod,
+            paymentGateway: paymentGateway,
+            paymentIntentId: paymentIntentId,
+            subtotal: subtotal.toString(),
+            deliveryFee: deliveryFee.toString(),
+            discount: discount.toString(),
+            total: total.toString(),
+            promoCode: promoCode,
+            deliveryAddressId: deliveryAddressId,
+            deliveryAddressSnapshot: deliveryAddressSnapshot,
             notes,
           })
-          .select()
-          .single();
+          .returning();
 
-        if (orderError) throw orderError;
+        const order = orderResult[0];
 
         // 10. Fetch restaurant name for notification
-        const { data: restaurant } = await supabase
-          .from("restaurants")
-          .select("name")
-          .eq("id", restaurantId)
-          .single();
+        const restaurantData = await db
+          .select({ name: restaurants.name })
+          .from(restaurants)
+          .where(eq(restaurants.id, restaurantId))
+          .limit(1);
+
+        const restaurant = restaurantData[0];
 
         // 11. Notify new order
         await notifyNewOrder({
           orderId: order.id,
           restaurantId,
           restaurantName:
-            typeof restaurant?.name === "object"
-              ? (restaurant.name as any).en || (restaurant.name as any).tr
-              : restaurant?.name || "Restaurant",
+            typeof (restaurant as any)?.name === "object"
+              ? ((restaurant as any).name as any).en ||
+                ((restaurant as any).name as any).tr
+              : (restaurant as any)?.name || "Restaurant",
           restaurantEmail: "", // As requested
           customerName: user.displayName ?? "Customer",
           items: summarizedItems,
@@ -232,31 +262,41 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
       const user = (request as any).user;
 
-      const { data: order, error } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", id)
-        .single();
+      try {
+        const orderResult = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, id))
+          .limit(1);
 
-      if (error || !order) {
-        return reply
-          .status(404)
-          .send({ success: false, error: "Order not found" });
+        const order = orderResult[0];
+
+        if (!order) {
+          return reply
+            .status(404)
+            .send({ success: false, error: "Order not found" });
+        }
+
+        // Permissions check
+        const canAccess =
+          order.customerId === user.uid ||
+          user.role === "restaurant_admin" ||
+          user.role === "super_admin";
+
+        if (!canAccess) {
+          return reply
+            .status(403)
+            .send({ success: false, error: "Access denied" });
+        }
+
+        return reply.send({ success: true, data: order });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: error.message || "Failed to fetch order",
+        });
       }
-
-      // Permissions check
-      const canAccess =
-        order.customer_id === user.uid ||
-        user.role === "restaurant_admin" ||
-        user.role === "super_admin";
-
-      if (!canAccess) {
-        return reply
-          .status(403)
-          .send({ success: false, error: "Access denied" });
-      }
-
-      return reply.send({ success: true, data: order });
     },
   );
 
@@ -273,13 +313,15 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       const user = (request as any).user;
 
       try {
-        const { data: order, error: fetchError } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", id)
-          .single();
+        const orderResult = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, id))
+          .limit(1);
 
-        if (fetchError || !order) {
+        const order = orderResult[0];
+
+        if (!order) {
           return reply
             .status(404)
             .send({ success: false, error: "Order not found" });
@@ -308,79 +350,51 @@ export default async function orderRoutes(fastify: FastifyInstance) {
 
         // Waypoints for OUT_FOR_DELIVERY
         if (newStatus === "OUT_FOR_DELIVERY") {
-          const { data: restaurant } = await supabase
-            .from("restaurants")
-            .select("location")
-            .eq("id", order.restaurant_id)
-            .single();
-
-          if (restaurant && restaurant.location) {
-            // locations are typically { type: 'Point', coordinates: [lng, lat] } in PostGIS GeoJSON
-            const restLoc = restaurant.location as any;
-            const startLng = restLoc.coordinates[0];
-            const startLat = restLoc.coordinates[1];
-            const endLat = order.delivery_address_snapshot.lat;
-            const endLng = order.delivery_address_snapshot.lng;
-
-            if (startLat && startLng && endLat && endLng) {
-              const waypoints = [];
-              for (let i = 1; i <= 5; i++) {
-                const ratio = i / 6;
-                waypoints.push({
-                  lat: startLat + (endLat - startLat) * ratio,
-                  lng: startLng + (endLng - startLng) * ratio,
-                });
-              }
-              updateData.simulated_route_waypoints = waypoints;
-            }
-          }
+          // Simulation placeholder as location is not in schema
+          console.log("Simulating delivery for order", id);
         }
 
         request.log.info(
           { orderId: id, newStatus, userRole: user.role },
           "Attempting status update",
         );
-        const { error: updateError } = await supabase
-          .from("orders")
-          .update(updateData)
-          .eq("id", id);
 
-        if (updateError) {
-          request.log.error({ updateError }, "Status update failed");
-          throw updateError;
-        }
+        const updatedResult = await db
+          .update(orders)
+          .set(updateData)
+          .where(eq(orders.id, id))
+          .returning();
 
-        const { data: updatedOrder, error: fetchError2 } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (fetchError2 || !updatedOrder) throw fetchError2;
+        const updatedOrder = updatedResult[0];
 
         // Fetch customer info for notification
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email, display_name")
-          .eq("id", order.customer_id)
-          .single();
+        const profileResult = await db
+          .select({ email: profiles.email, displayName: profiles.displayName })
+          .from(profiles)
+          .where(eq(profiles.id, order.customerId))
+          .limit(1);
 
-        const { data: restaurant } = await supabase
-          .from("restaurants")
-          .select("name")
-          .eq("id", order.restaurant_id)
-          .single();
+        const profile = profileResult[0];
+
+        const restaurantData = await db
+          .select({ name: restaurants.name })
+          .from(restaurants)
+          .where(eq(restaurants.id, order.restaurantId))
+          .limit(1);
+
+        const restaurant = restaurantData[0];
 
         if (profile) {
           await notifyOrderStatusChange({
             orderId: id,
-            customerId: order.customer_id,
+            customerId: order.customerId,
             customerEmail: profile.email,
-            customerName: profile.display_name,
+            customerName: profile.displayName || "Customer",
             restaurantName:
-              typeof restaurant?.name === "object"
-                ? (restaurant.name as any).en || (restaurant.name as any).tr
-                : restaurant?.name || "Restaurant",
+              typeof (restaurant as any)?.name === "object"
+                ? ((restaurant as any).name as any).en ||
+                  ((restaurant as any).name as any).tr
+                : (restaurant as any)?.name || "Restaurant",
             newStatus,
           });
         }
@@ -408,19 +422,21 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       const user = (request as any).user;
 
       try {
-        const { data: order, error: fetchError } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", id)
-          .single();
+        const orderResult = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, id))
+          .limit(1);
 
-        if (fetchError || !order) {
+        const order = orderResult[0];
+
+        if (!order) {
           return reply
             .status(404)
             .send({ success: false, error: "Order not found" });
         }
 
-        if (order.customer_id !== user.uid) {
+        if (order.customerId !== user.uid) {
           return reply.status(403).send({
             success: false,
             error: "Only the customer can cancel their order",
@@ -434,47 +450,42 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const { error: updateError } = await supabase
-          .from("orders")
-          .update({ status: "CANCELLED" })
-          .eq("id", id);
+        const updatedResult = await db
+          .update(orders)
+          .set({ status: "CANCELLED" })
+          .where(eq(orders.id, id))
+          .returning();
 
-        if (updateError) {
-          request.log.error({ updateError }, "Order cancellation failed");
-          throw updateError;
-        }
-
-        const { data: updatedOrder, error: fetchError2 } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (fetchError2 || !updatedOrder) throw fetchError2;
+        const updatedOrder = updatedResult[0];
 
         // Notify
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email, display_name")
-          .eq("id", order.customer_id)
-          .single();
+        const profileResult = await db
+          .select({ email: profiles.email, displayName: profiles.displayName })
+          .from(profiles)
+          .where(eq(profiles.id, order.customerId))
+          .limit(1);
 
-        const { data: restaurant } = await supabase
-          .from("restaurants")
-          .select("name")
-          .eq("id", order.restaurant_id)
-          .single();
+        const profile = profileResult[0];
+
+        const restaurantData = await db
+          .select({ name: restaurants.name })
+          .from(restaurants)
+          .where(eq(restaurants.id, order.restaurantId))
+          .limit(1);
+
+        const restaurant = restaurantData[0];
 
         if (profile) {
           await notifyOrderStatusChange({
             orderId: id,
-            customerId: order.customer_id,
+            customerId: order.customerId,
             customerEmail: profile.email,
-            customerName: profile.display_name,
+            customerName: profile.displayName || "Customer",
             restaurantName:
-              typeof restaurant?.name === "object"
-                ? (restaurant.name as any).en || (restaurant.name as any).tr
-                : restaurant?.name || "Restaurant",
+              typeof (restaurant as any)?.name === "object"
+                ? ((restaurant as any).name as any).en ||
+                  ((restaurant as any).name as any).tr
+                : (restaurant as any)?.name || "Restaurant",
             newStatus: "CANCELLED",
           });
         }

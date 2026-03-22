@@ -1,3 +1,5 @@
+import { db, auditLogs } from "@shoplift/db";
+
 export async function writeAuditLog(params: {
   adminId: string;
   action: string;
@@ -6,14 +8,16 @@ export async function writeAuditLog(params: {
   payload?: object;
   ipAddress?: string;
 }) {
-  const { supabase } = await import("./supabase.js"); // lazy loading due to context
-
-  await supabase.from("audit_logs").insert({
-    admin_id: params.adminId,
-    action: params.action,
-    target_type: params.targetType,
-    target_id: params.targetId,
-    payload: params.payload,
-    ip_address: params.ipAddress,
-  });
+  try {
+    await db.insert(auditLogs).values({
+      adminId: params.adminId,
+      action: params.action,
+      targetType: params.targetType,
+      targetId: params.targetId,
+      payload: params.payload,
+      ipAddress: params.ipAddress,
+    });
+  } catch (error) {
+    console.error("Failed to write audit log:", error);
+  }
 }

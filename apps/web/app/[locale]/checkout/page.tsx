@@ -14,6 +14,7 @@ import {
   CreditCard,
   Banknote,
 } from "lucide-react";
+import { showToast } from "@/lib/toast";
 
 type Step = "address" | "review" | "confirm";
 
@@ -125,7 +126,7 @@ export default function CheckoutPage() {
       clearCart();
       router.push(`/${locale}/orders/${data.id}`);
     } else {
-      alert(error || "Failed to place order");
+      showToast.error(error || "Failed to place order");
     }
   };
 

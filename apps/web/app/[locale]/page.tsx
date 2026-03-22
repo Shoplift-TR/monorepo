@@ -20,7 +20,7 @@ const MOCK_RESTAURANTS = [
     cuisine: "Artisanal Burgers",
     rating: 4.9,
     deliveryTime: "15–25 min",
-    deliveryFee: "TL 0 DELIVERY FEE",
+    deliveryFee: "FREE DELIVERY",
     freeDelivery: true,
     tag: "MOST POPULAR",
   },
@@ -30,7 +30,7 @@ const MOCK_RESTAURANTS = [
     cuisine: "Wood Fired Pizza",
     rating: 4.7,
     deliveryTime: "20–30 min",
-    deliveryFee: "TL 0 DELIVERY FEE",
+    deliveryFee: "FREE DELIVERY",
     freeDelivery: true,
     tag: "NEW",
   },
@@ -40,7 +40,7 @@ const MOCK_RESTAURANTS = [
     cuisine: "Japanese",
     rating: 4.6,
     deliveryTime: "25–35 min",
-    deliveryFee: "TL 0 DELIVERY FEE",
+    deliveryFee: "FREE DELIVERY",
     freeDelivery: true,
     tag: "",
   },
@@ -50,7 +50,7 @@ const MOCK_RESTAURANTS = [
     cuisine: "Coffee & Bakery",
     rating: 5.0,
     deliveryTime: "5–15 min",
-    deliveryFee: "TL 0.99 DELIVERY FEE",
+    deliveryFee: "₺0.99 DELIVERY",
     freeDelivery: false,
     tag: "MOST POPULAR",
   },
@@ -85,7 +85,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col font-sans text-on-surface bg-surface min-h-screen">
+    <div className="flex flex-col font-sans text-[#191c1d] dark:text-[#e8eaf0] bg-[var(--surface)] dark:bg-[#0f1117] min-h-screen">
       {/* HERO SECTION */}
       <section
         className="w-full pt-12 pb-24 px-6 md:px-12"
@@ -125,15 +125,15 @@ export default function HomePage() {
             </div>
 
             {/* Stat Card */}
-            <div className="mt-8 flex items-center gap-3 bg-white rounded-2xl p-4 shadow-[0_12px_24px_rgba(0,4,53,0.08)] self-end md:self-auto">
+            <div className="mt-8 flex items-center gap-3 bg-white dark:bg-[#1e2235] rounded-2xl p-4 shadow-[0_12px_24px_rgba(0,4,53,0.08)] self-end md:self-auto border dark:border-[rgba(255,255,255,0.06)]">
               <div className="w-10 h-10 rounded-full bg-[#92fc40]/20 flex items-center justify-center text-[#92fc40]">
                 <Zap className="w-5 h-5 fill-[#92fc40]" />
               </div>
               <div>
-                <div className="text-[#101744] font-bold text-sm">
+                <div className="text-[#101744] dark:text-[#e8eaf0] font-bold text-sm">
                   12 Min Delivery
                 </div>
-                <div className="text-slate-500 text-[0.625rem] font-bold uppercase tracking-wider">
+                <div className="text-slate-500 dark:text-[#9ba3b8] text-[0.625rem] font-bold uppercase tracking-wider">
                   AVERAGE TIME
                 </div>
               </div>
@@ -152,8 +152,8 @@ export default function HomePage() {
               <div className="absolute inset-0 flex items-center justify-center text-white/10 font-bold text-2xl">
                 <img
                   className="w-full h-full object-cover mix-blend-overlay opacity-80"
-                  data-alt="Gourmet campus burger with fresh ingredients"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLFsSqbRGWf9sYKUXskW_RdskaBR6m-ME2PvRFchh7ASiWOSSDc_X0K_9F-IeLfV8TkYKCnBCPh7Tuoq1a39Ivh_-r5VQeoLVnl5D7g4Grqjd4nx7wF9rEviie_wGXAF3LxzfqhTLGX38vlFlxNV0aE5_5vBkypwxiYb_HfrEBtrEnj9Yzo0W8NHT2nECox9XqB2LHuJMJ1tuDMpN1XZqJ6PpMDOrSP2yHIDr25mOdNzYuAkvolxzjw7TpyTTAmUbQbLPeGpO9kz4"
+                  alt="Gourmet campus burger"
+                  src="https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=800&auto=format&fit=crop"
                 />
               </div>
             </div>
@@ -162,22 +162,19 @@ export default function HomePage() {
       </section>
 
       {/* CATEGORY FILTER ROW */}
-      <section className="bg-surface py-8">
+      <section className="bg-[var(--surface)] dark:bg-[#0f1117] py-8 border-b border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]">
         <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div
-            className="flex gap-3 overflow-x-auto pb-4 scrollbar-none no-scrollbar"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
+          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none no-scrollbar">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.name}
                 onClick={() => handleCategoryClick(cat.name, cat.slug)}
                 className={`
-                  flex items-center gap-2 whitespace-nowrap px-4 py-2 rounded-full text-[0.875rem] transition-all
+                  flex items-center gap-2 whitespace-nowrap px-5 py-2.5 rounded-full text-[0.875rem] transition-all
                   ${
                     activeCategory === cat.name
-                      ? "bg-[#92fc40] border-[#92fc40] text-[#0b2000] font-bold shadow-sm"
-                      : "bg-[#f4f2ff] text-[#191c1d] font-medium hover:bg-[#dfe0ff]"
+                      ? "bg-[#92fc40] text-[#0b2000] font-bold shadow-md scale-105"
+                      : "bg-[#edeeef] dark:bg-[#1a1d2e] text-[#5e5e5e] dark:text-[#9ba3b8] font-bold hover:bg-[#e4e5e7] dark:hover:bg-[#222536]"
                   }
                 `}
               >
@@ -190,18 +187,18 @@ export default function HomePage() {
       </section>
 
       {/* POPULAR NEAR YOU SECTION */}
-      <section className="bg-surface pb-16">
+      <section className="bg-[var(--surface)] dark:bg-[#0f1117] py-16">
         <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div className="flex justify-between items-end mb-8">
+          <div className="flex justify-between items-end mb-10">
             <div>
-              <h2 className="text-[#101744] font-extrabold text-[1.75rem] tracking-[-0.04em]">
+              <h2 className="text-[#101744] dark:text-[#e8eaf0] font-extrabold text-[1.75rem] tracking-[-0.04em]">
                 Popular near you
               </h2>
               <div className="h-[3px] w-10 bg-[#92fc40] mt-1" />
             </div>
             <Link
               href="/restaurants"
-              className="text-[#101744] font-bold text-[0.875rem] flex items-center gap-1 hover:underline"
+              className="text-[#101744] dark:text-[#92fc40] font-bold text-[0.875rem] flex items-center gap-1 hover:underline tracking-tight"
             >
               VIEW ALL →
             </Link>
@@ -211,9 +208,18 @@ export default function HomePage() {
             {MOCK_RESTAURANTS.map((res) => (
               <div
                 key={res.id}
-                className="bg-white rounded-[12px] shadow-[0_12px_24px_rgba(0,4,53,0.08)] overflow-hidden relative group cursor-pointer"
+                onClick={() => router.push(`/restaurants/${res.id}`)}
+                className="bg-white dark:bg-[#1e2235] rounded-[12px] 
+                           shadow-[0_12px_24px_rgba(0,4,53,0.08)] 
+                           overflow-hidden relative group cursor-pointer 
+                           transition-all hover:scale-[1.02] border dark:border-[rgba(255,255,255,0.06)]"
               >
                 <div className="h-[180px] w-full bg-gradient-to-b from-[#1a1f2e] to-[#2d3748] relative">
+                  <img
+                    src={`https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&auto=format&fit=crop&q=60`}
+                    alt={res.name}
+                    className="w-full h-full object-cover opacity-80"
+                  />
                   {res.tag && (
                     <div
                       className={`
@@ -225,25 +231,29 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
-                <div className="p-4 relative">
-                  <h3 className="text-[#101744] font-bold text-[1rem]">
+                <div className="p-5 relative">
+                  <h3 className="text-[#101744] dark:text-[#e8eaf0] font-bold text-[1rem] mb-1">
                     {res.name}
                   </h3>
-                  <div className="flex items-center gap-1 text-[0.8125rem] text-[#5e5e5e] font-bold mt-1">
-                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span>{res.rating}</span>
-                    <span className="mx-1">•</span>
+                  <div className="flex items-center gap-1 text-[0.8125rem] text-[#5e5e5e] dark:text-[#9ba3b8] font-bold">
+                    <Star className="w-3 h-3 fill-[#f59e0b] text-[#f59e0b]" />
+                    <span className="text-[#101744] dark:text-[#e8eaf0]">
+                      {res.rating}
+                    </span>
+                    <span className="mx-1 opacity-30">•</span>
                     <span>{res.cuisine}</span>
-                    <span className="mx-1">•</span>
-                    <span>{res.deliveryTime}</span>
                   </div>
-                  <div
-                    className={`text-[0.8125rem] mt-2 font-bold ${res.freeDelivery ? "text-[#92fc40]" : "text-[#5e5e5e]"}`}
-                  >
-                    {res.deliveryFee}
+                  <div className="flex items-center gap-1 text-[0.8125rem] text-[#5e5e5e] dark:text-[#9ba3b8] font-bold mt-1">
+                    <span>{res.deliveryTime}</span>
+                    <span className="mx-1 opacity-30">•</span>
+                    <span
+                      className={`font-extrabold ${res.freeDelivery ? "text-[#92fc40]" : "text-[#5e5e5e] dark:text-[#9ba3b8]"}`}
+                    >
+                      {res.deliveryFee}
+                    </span>
                   </div>
 
-                  <button className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-black flex items-center justify-center text-white shadow-lg transition-transform hover:scale-110 active:scale-95">
+                  <button className="absolute bottom-5 right-5 w-10 h-10 rounded-full bg-[#101744] dark:bg-[#92fc40] flex items-center justify-center text-white dark:text-[#0b2000] shadow-lg transition-transform hover:scale-110 active:scale-95">
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
@@ -254,13 +264,13 @@ export default function HomePage() {
       </section>
 
       {/* FEATURE STRIP */}
-      <section className="bg-[#101744] py-16 px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 text-left">
-          <div className="flex flex-col gap-4">
-            <div className="w-12 h-12 bg-[#92fc40]/15 rounded-xl flex items-center justify-center text-[#92fc40]">
-              <Rocket className="w-6 h-6" />
+      <section className="bg-[#101744] py-20 px-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-16 text-left">
+          <div className="flex flex-col gap-5">
+            <div className="w-14 h-14 bg-[#92fc40]/15 rounded-2xl flex items-center justify-center text-[#92fc40]">
+              <Rocket className="w-7 h-7" />
             </div>
-            <h3 className="text-white font-bold text-[1.25rem]">
+            <h3 className="text-white font-extrabold text-[1.25rem] tracking-tight">
               Fast Delivery
             </h3>
             <p className="text-white/60 text-[0.9375rem] leading-[1.6]">
@@ -268,11 +278,11 @@ export default function HomePage() {
               layouts. No more cold food at the library.
             </p>
           </div>
-          <div className="flex flex-col gap-4">
-            <div className="w-12 h-12 bg-[#92fc40]/15 rounded-xl flex items-center justify-center text-[#92fc40]">
-              <GraduationCap className="w-6 h-6" />
+          <div className="flex flex-col gap-5">
+            <div className="w-14 h-14 bg-[#92fc40]/15 rounded-2xl flex items-center justify-center text-[#92fc40]">
+              <GraduationCap className="w-7 h-7" />
             </div>
-            <h3 className="text-white font-bold text-[1.25rem]">
+            <h3 className="text-white font-extrabold text-[1.25rem] tracking-tight">
               Campus Focused
             </h3>
             <p className="text-white/60 text-[0.9375rem] leading-[1.6]">
@@ -280,11 +290,11 @@ export default function HomePage() {
               exactly where your building is.
             </p>
           </div>
-          <div className="flex flex-col gap-4">
-            <div className="w-12 h-12 bg-[#92fc40]/15 rounded-xl flex items-center justify-center text-[#92fc40]">
-              <CreditCard className="w-6 h-6" />
+          <div className="flex flex-col gap-5">
+            <div className="w-14 h-14 bg-[#92fc40]/15 rounded-2xl flex items-center justify-center text-[#92fc40]">
+              <CreditCard className="w-7 h-7" />
             </div>
-            <h3 className="text-white font-bold text-[1.25rem]">
+            <h3 className="text-white font-extrabold text-[1.25rem] tracking-tight">
               Easy Payment
             </h3>
             <p className="text-white/60 text-[0.9375rem] leading-[1.6]">
@@ -296,40 +306,48 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer>
-        <div className="bg-[#101744] py-12 px-6 md:px-12 border-b border-white/5">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="text-white font-bold text-xl tracking-tighter">
+      <footer className="bg-[#080c24]">
+        <div className="py-16 px-6 md:px-12 border-b border-white/5">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
+            <div className="text-white font-bold text-2xl tracking-tighter">
               SHOPLIFT
             </div>
-            <nav className="flex flex-wrap justify-center gap-6 text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-white/50">
-              <Link href="/en" className="hover:text-white transition-colors">
+            <nav className="flex flex-wrap justify-center gap-8 text-[0.75rem] font-bold uppercase tracking-[0.15em] text-white/40">
+              <Link
+                href="/en"
+                className="hover:text-[#92fc40] transition-colors"
+              >
                 ENGLISH
               </Link>
-              <Link href="/tr" className="hover:text-white transition-colors">
+              <Link
+                href="/tr"
+                className="hover:text-[#92fc40] transition-colors"
+              >
                 TÜRKÇE
               </Link>
               <Link
                 href="/privacy"
-                className="hover:text-white transition-colors"
+                className="hover:text-[#92fc40] transition-colors"
               >
-                PRIVACY POLICY
+                PRIVACY
               </Link>
               <Link
                 href="/terms"
-                className="hover:text-white transition-colors"
+                className="hover:text-[#92fc40] transition-colors"
               >
-                TERMS OF SERVICE
+                TERMS
               </Link>
             </nav>
           </div>
         </div>
-        <div className="bg-[#0a0f1e] py-6 px-6 md:px-12">
+        <div className="border-t border-white/5 py-8 px-6 md:px-12">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="text-white font-extrabold text-sm tracking-wider">
+            <div className="text-white font-extrabold text-[0.6875rem] tracking-[0.2em] opacity-30">
               SHOPLIFT
             </div>
-            <div className="text-white/40 text-[0.75rem]">© 2025 Shoplift</div>
+            <div className="text-white/20 text-[0.75rem] font-medium">
+              © 2025 Shoplift
+            </div>
           </div>
         </div>
       </footer>

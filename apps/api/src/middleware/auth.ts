@@ -1,6 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { supabase } from "../lib/supabase.js";
 import { ApiResponse } from "@shoplift/types";
+import { db, profiles } from "@shoplift/db";
+import { eq } from "drizzle-orm";
 
 /**
  * verifyAuth
@@ -47,13 +49,15 @@ export const verifyAuth = async (
   }
 
   // Fetch profile from Postgres for role + restaurantId
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", authData.user.id)
-    .single();
+  const profileResult = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, authData.user.id))
+    .limit(1);
 
-  if (profileError || !profile) {
+  const profile = profileResult[0];
+
+  if (!profile) {
     const errorResponse: ApiResponse<null> = {
       success: false,
       data: null,
@@ -65,10 +69,10 @@ export const verifyAuth = async (
   request.user = {
     uid: authData.user.id,
     email: authData.user.email ?? "",
-    displayName: profile.display_name || "Customer",
+    displayName: profile.displayName || "Customer",
     username: profile.username || null,
     role: profile.role,
-    restaurantId: profile.restaurant_id ?? null,
+    restaurantId: profile.restaurantId ?? null,
   };
 };
 

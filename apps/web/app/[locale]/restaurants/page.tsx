@@ -12,7 +12,7 @@ export default async function RestaurantsPage({
     cuisine?: string;
     radius?: string;
   };
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
   const sp = await searchParams;

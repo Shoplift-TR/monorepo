@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import { ordersApi } from "@/lib/api";
 import { supabase } from "@/lib/supabase-client";
+import { showToast } from "@/lib/toast";
 import {
   ArrowLeft,
   Check,
@@ -76,7 +77,7 @@ export default function OrderDetailsPage() {
     if (!error) {
       fetchOrder();
     } else {
-      alert(error);
+      showToast.error(error);
     }
   };
 

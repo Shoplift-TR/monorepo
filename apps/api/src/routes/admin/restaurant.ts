@@ -1,7 +1,8 @@
 import { FastifyInstance } from "fastify";
-import { supabase } from "../../lib/supabase.js";
 import { verifyAuth, requireRestaurantAdmin } from "../../middleware/auth.js";
 import { ApiResponse } from "@shoplift/types";
+import { db, orders, menuItems, analyticsSnapshots } from "@shoplift/db";
+import { eq, and, asc, desc, inArray, gte } from "drizzle-orm";
 
 interface MenuBody {
   name: string;
@@ -40,22 +41,27 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * Order by created_at ascending. Return array.
    */
   fastify.get("/orders", async (request, reply) => {
-    const restaurantId = request.restaurantId;
+    const restaurantId = request.restaurantId as string;
 
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .in("status", ["PENDING", "CONFIRMED", "PREPARING", "READY_FOR_PICKUP"])
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      return reply.status(500).send({ success: false, error: error.message });
-    }
+    const result = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.restaurantId, restaurantId),
+          inArray(orders.status, [
+            "PENDING",
+            "CONFIRMED",
+            "PREPARING",
+            "READY_FOR_PICKUP",
+          ]),
+        ),
+      )
+      .orderBy(asc(orders.createdAt));
 
     const response: ApiResponse<any[]> = {
       success: true,
-      data: data || [],
+      data: result || [],
       error: null,
     };
     return reply.send(response);
@@ -67,21 +73,17 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * Return all items including is_available.
    */
   fastify.get("/menu", async (request, reply) => {
-    const restaurantId = request.restaurantId;
+    const restaurantId = request.restaurantId as string;
 
-    const { data, error } = await supabase
-      .from("menu_items")
-      .select("*")
-      .eq("restaurant_id", restaurantId)
-      .order("display_order", { ascending: true });
-
-    if (error) {
-      return reply.status(500).send({ success: false, error: error.message });
-    }
+    const result = await db
+      .select()
+      .from(menuItems)
+      .where(eq(menuItems.restaurantId, restaurantId))
+      .orderBy(asc(menuItems.displayOrder));
 
     const response: ApiResponse<any[]> = {
       success: true,
-      data: data || [],
+      data: result || [],
       error: null,
     };
     return reply.send(response);
@@ -94,7 +96,7 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * Insert into menu_items. Return created item with status 201.
    */
   fastify.post<{ Body: MenuBody }>("/menu/items", async (request, reply) => {
-    const restaurantId = request.restaurantId;
+    const restaurantId = request.restaurantId as string;
     const {
       name,
       description,
@@ -108,37 +110,33 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
 
     try {
       // 1. Get max display_order
-      const { data: maxOrderData, error: maxOrderError } = await supabase
-        .from("menu_items")
-        .select("display_order")
-        .eq("restaurant_id", restaurantId)
-        .order("display_order", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const maxOrderResult = await db
+        .select({ displayOrder: menuItems.displayOrder })
+        .from(menuItems)
+        .where(eq(menuItems.restaurantId, restaurantId))
+        .orderBy(desc(menuItems.displayOrder))
+        .limit(1);
 
-      if (maxOrderError) throw maxOrderError;
-
-      const nextOrder = (maxOrderData?.display_order || 0) + 1;
+      const nextOrder = (maxOrderResult[0]?.displayOrder || 0) + 1;
 
       // 2. Insert into menu_items
-      const { data, error } = await supabase
-        .from("menu_items")
-        .insert({
-          restaurant_id: restaurantId,
+      const result = await db
+        .insert(menuItems)
+        .values({
+          restaurantId: restaurantId,
           name,
           description,
-          price,
+          price: price.toString(),
           category,
-          image_url: imageUrl,
-          is_available: isAvailable ?? true,
+          imageUrl,
+          isAvailable: isAvailable ?? true,
           modifiers: modifiers ?? [],
-          food_cost_percent: foodCostPercent,
-          display_order: nextOrder,
+          foodCostPercent: foodCostPercent?.toString(),
+          displayOrder: nextOrder,
         })
-        .select()
-        .single();
+        .returning();
 
-      if (error) throw error;
+      const data = result[0];
 
       const response: ApiResponse<any> = {
         success: true,
@@ -159,25 +157,27 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   fastify.put<{ Params: { id: string }; Body: UpdateMenuBody }>(
     "/menu/items/:id",
     async (request, reply) => {
-      const restaurantId = request.restaurantId;
+      const restaurantId = request.restaurantId as string;
       const { id } = request.params;
       const updates = request.body;
 
       try {
         // 1. Check if item belongs to this restaurant
-        const { data: existing, error: fetchError } = await supabase
-          .from("menu_items")
-          .select("restaurant_id")
-          .eq("id", id)
-          .single();
+        const existingResult = await db
+          .select({ restaurantId: menuItems.restaurantId })
+          .from(menuItems)
+          .where(eq(menuItems.id, id))
+          .limit(1);
 
-        if (fetchError || !existing) {
+        const existing = existingResult[0];
+
+        if (!existing) {
           return reply
             .status(404)
             .send({ success: false, error: "Menu item not found" });
         }
 
-        if (existing.restaurant_id !== restaurantId) {
+        if (existing.restaurantId !== restaurantId) {
           return reply.status(403).send({
             success: false,
             error: "Forbidden: Item does not belong to your restaurant",
@@ -203,14 +203,13 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
           }
         });
 
-        const { data, error } = await supabase
-          .from("menu_items")
-          .update(allowedUpdates)
-          .eq("id", id)
-          .select()
-          .single();
+        const result = await db
+          .update(menuItems)
+          .set(allowedUpdates)
+          .where(eq(menuItems.id, id))
+          .returning();
 
-        if (error) throw error;
+        const data = result[0];
 
         const response: ApiResponse<any> = {
           success: true,
@@ -231,24 +230,26 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   fastify.delete<{ Params: { id: string } }>(
     "/menu/items/:id",
     async (request, reply) => {
-      const restaurantId = request.restaurantId;
+      const restaurantId = request.restaurantId as string;
       const { id } = request.params;
 
       try {
         // 1. Check if item belongs to this restaurant
-        const { data: existing, error: fetchError } = await supabase
-          .from("menu_items")
-          .select("restaurant_id")
-          .eq("id", id)
-          .single();
+        const existingResult = await db
+          .select({ restaurantId: menuItems.restaurantId })
+          .from(menuItems)
+          .where(eq(menuItems.id, id))
+          .limit(1);
 
-        if (fetchError || !existing) {
+        const existing = existingResult[0];
+
+        if (!existing) {
           return reply
             .status(404)
             .send({ success: false, error: "Menu item not found" });
         }
 
-        if (existing.restaurant_id !== restaurantId) {
+        if (existing.restaurantId !== restaurantId) {
           return reply.status(403).send({
             success: false,
             error: "Forbidden: Item does not belong to your restaurant",
@@ -256,12 +257,10 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         }
 
         // 2. Perform soft delete
-        const { error } = await supabase
-          .from("menu_items")
-          .update({ is_available: false })
-          .eq("id", id);
-
-        if (error) throw error;
+        await db
+          .update(menuItems)
+          .set({ isAvailable: false })
+          .where(eq(menuItems.id, id));
 
         const response: ApiResponse<{ success: boolean }> = {
           success: true,
@@ -284,7 +283,7 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { period?: "daily" | "weekly" | "monthly" } }>(
     "/analytics",
     async (request, reply) => {
-      const restaurantId = request.restaurantId;
+      const restaurantId = request.restaurantId as string;
       const period = request.query.period || "daily";
 
       const now = new Date();
@@ -303,20 +302,20 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
 
       const rangeStartStr = rangeStart.toISOString().split("T")[0];
 
-      const { data, error } = await supabase
-        .from("analytics_snapshots")
-        .select("*")
-        .eq("restaurant_id", restaurantId)
-        .gte("date", rangeStartStr)
-        .order("date", { ascending: true });
-
-      if (error) {
-        return reply.status(500).send({ success: false, error: error.message });
-      }
+      const result = await db
+        .select()
+        .from(analyticsSnapshots)
+        .where(
+          and(
+            eq(analyticsSnapshots.restaurantId, restaurantId),
+            gte(analyticsSnapshots.date, rangeStartStr),
+          ),
+        )
+        .orderBy(asc(analyticsSnapshots.date));
 
       const response: ApiResponse<any[]> = {
         success: true,
-        data: data || [],
+        data: result || [],
         error: null,
       };
       return reply.send(response);

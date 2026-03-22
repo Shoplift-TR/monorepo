@@ -1,5 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { supabase } from "../lib/supabase.js";
+import { db, restaurants, menuItems } from "@shoplift/db";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 
 interface RestaurantsQuery {
   lat?: number;
@@ -45,21 +47,21 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
           return reply.send({ success: true, data });
         } else {
           // Standard query with optional cuisine filter
-          let query = supabase
-            .from("restaurants")
-            .select("*")
-            .eq("is_active", true)
-            .eq("is_approved", true)
-            .order("rating", { ascending: false });
+          const result = await db
+            .select()
+            .from(restaurants)
+            .where(
+              and(
+                eq(restaurants.isActive, true),
+                eq(restaurants.isApproved, true),
+                cuisine
+                  ? sql`${restaurants.cuisineTags} @> ARRAY[${cuisine}]::text[]`
+                  : undefined,
+              ),
+            )
+            .orderBy(desc(restaurants.rating));
 
-          if (cuisine) {
-            query = query.contains("cuisine_tags", [cuisine]);
-          }
-
-          const { data, error } = await query;
-          if (error) throw error;
-
-          return reply.send({ success: true, data });
+          return reply.send({ success: true, data: result });
         }
       } catch (error: any) {
         request.log.error(error);
@@ -78,20 +80,19 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
     const { id } = request.params;
 
     try {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("id", id)
-        .eq("is_active", true)
-        .single();
+      const result = await db
+        .select()
+        .from(restaurants)
+        .where(and(eq(restaurants.id, id), eq(restaurants.isActive, true)))
+        .limit(1);
 
-      if (error || !data) {
+      if (!result[0]) {
         return reply
           .status(404)
           .send({ success: false, error: "Restaurant not found" });
       }
 
-      return reply.send({ success: true, data });
+      return reply.send({ success: true, data: result[0] });
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({
@@ -110,18 +111,20 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
 
       try {
-        const { data, error } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("restaurant_id", id)
-          .eq("is_available", true)
-          .order("display_order", { ascending: true });
-
-        if (error) throw error;
+        const items = await db
+          .select()
+          .from(menuItems)
+          .where(
+            and(
+              eq(menuItems.restaurantId, id),
+              eq(menuItems.isAvailable, true),
+            ),
+          )
+          .orderBy(asc(menuItems.displayOrder));
 
         // Group by category
         const categories: Record<string, any[]> = {};
-        data.forEach((item) => {
+        items.forEach((item) => {
           const cat = item.category || "General";
           if (!categories[cat]) {
             categories[cat] = [];

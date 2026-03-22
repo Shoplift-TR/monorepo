@@ -165,7 +165,9 @@ function RestaurantCard({
             <div className="flex items-center gap-1 bg-zinc-100 px-2 py-0.5 rounded-full">
               <span className="text-[#FFB800] text-sm">★</span>
               <span className="text-xs font-bold text-zinc-800">
-                {restaurant.rating?.toFixed(1) || "New"}
+                {restaurant.rating
+                  ? Number(restaurant.rating).toFixed(1)
+                  : "New"}
               </span>
             </div>
           </div>

@@ -7,6 +7,8 @@ import { rateLimiterPlugin } from "./middleware/rateLimiter.js";
 import { supabase } from "./lib/supabase.js";
 import { registerRoutes } from "./routes/index.js";
 import { ApiResponse } from "@shoplift/types";
+import { db, profiles } from "@shoplift/db";
+import { eq } from "drizzle-orm";
 
 const server = Fastify({
   logger: {
@@ -50,7 +52,25 @@ server.addHook("onRequest", async (request) => {
     try {
       const { data } = await supabase.auth.getUser(token);
       if (data.user) {
-        request.user = data.user;
+        // Fetch profile to populate full request.user object
+        const profileResult = await db
+          .select()
+          .from(profiles)
+          .where(eq(profiles.id, data.user.id))
+          .limit(1);
+
+        const profile = profileResult[0];
+
+        if (profile) {
+          request.user = {
+            uid: data.user.id,
+            email: data.user.email ?? "",
+            displayName: profile.displayName || "Customer",
+            username: profile.username || null,
+            role: profile.role,
+            restaurantId: profile.restaurantId ?? null,
+          };
+        }
       }
     } catch (_error) {
       // Ignore token errors here; protected routes will handle it in preHandler

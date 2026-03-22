@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 export default async function RestaurantMenuPage({
   params,
 }: {
-  params: { locale: string; id: string };
+  params: Promise<{ locale: string; id: string }>;
 }) {
   const { locale, id } = await params;
 

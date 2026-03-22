@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
 import "../globals.css";
 
@@ -22,7 +24,7 @@ export default async function RootLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
 
@@ -36,16 +38,33 @@ export default async function RootLayout({
   const messages = (await getMessages()) as any;
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body className={`${plusJakartaSans.variable} antialiased font-sans`}>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <AuthProvider>
-            <CartProvider>
-              <Navbar />
-              <main className="pt-20">{children}</main>
-            </CartProvider>
-          </AuthProvider>
-        </NextIntlClientProvider>
+        <ThemeProvider>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            <AuthProvider>
+              <CartProvider>
+                <Navbar />
+                <main className="pt-20">{children}</main>
+              </CartProvider>
+            </AuthProvider>
+          </NextIntlClientProvider>
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              style: {
+                background: "var(--surface-container-lowest)",
+                color: "var(--on-surface)",
+                border: "1px solid rgba(146,252,64,0.2)",
+                fontFamily: "Plus Jakarta Sans, sans-serif",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+              },
+              className: "shoplift-toast",
+            }}
+            richColors
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

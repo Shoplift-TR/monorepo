@@ -47,6 +47,7 @@
   "dependencies": {
     "@shoplift/types": "^0.0.1",
     "lucide-react": "^0.577.0",
-    "tailwindcss": "^4.2.1"
+    "tailwind": "^2.3.1",
+    "tailwindcss": "^4.2.2"
   }
 }

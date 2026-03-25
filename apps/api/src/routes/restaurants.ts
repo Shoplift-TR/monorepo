@@ -122,19 +122,9 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
           )
           .orderBy(asc(menuItems.displayOrder));
 
-        // Group by category
-        const categories: Record<string, any[]> = {};
-        items.forEach((item) => {
-          const cat = item.category || "General";
-          if (!categories[cat]) {
-            categories[cat] = [];
-          }
-          categories[cat].push(item);
-        });
-
         return reply.send({
           success: true,
-          data: { categories },
+          data: items,
         });
       } catch (error: any) {
         request.log.error(error);

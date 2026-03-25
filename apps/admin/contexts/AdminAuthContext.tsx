@@ -139,6 +139,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
               ? { Authorization: `Bearer ${session.access_token}` }
               : {}),
           },
+          credentials: "include",
           body: JSON.stringify({ action, targetType, targetId }),
         },
       );

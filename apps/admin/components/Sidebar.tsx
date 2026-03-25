@@ -180,7 +180,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile Nav Toggle */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-100 px-4 flex items-center justify-between z-40 relative">
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-100 px-4 flex items-center justify-between z-40">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-black tracking-tight text-zinc-900">
             Shoplift

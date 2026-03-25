@@ -24,7 +24,7 @@ async function fetcher<T>(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as unknown as Record<string, string>),
+    ...(options.headers as Record<string, string>),
   };
 
   if (token) {
@@ -36,6 +36,7 @@ async function fetcher<T>(
     const response = await fetch(url, {
       ...options,
       headers,
+      credentials: "include",
     });
 
     if (response.status === 401) {

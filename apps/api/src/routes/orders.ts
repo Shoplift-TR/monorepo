@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { supabase } from "../lib/supabase.js";
-import { notifyOrderStatusChange } from "../lib/notifier.js";
+import { notifyOrderStatusChange, notifyNewOrder } from "../lib/notifier.js";
 import { sendOrderNotifications } from "../lib/notifications.js";
 import { validatePromo } from "../lib/promos.js";
 import { verifyAuth } from "../middleware/auth.js";
@@ -225,6 +225,18 @@ export default async function orderRoutes(fastify: FastifyInstance) {
 
         const order = orderResult[0];
 
+        // Broadcast to the restaurant's channel
+        await supabase.channel(`restaurant:${order.restaurantId}`).send({
+          type: "broadcast",
+          event: "new_order",
+          payload: {
+            id: order.id,
+            total: Number(order.total),
+            restaurant_id: order.restaurantId,
+            created_at: order.createdAt?.toISOString(),
+          },
+        });
+
         // 10. Fetch restaurant admin email for notification
         const restaurantProfileResult = await db
           .select({ email: profiles.email })
@@ -266,6 +278,19 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           notes: notes || undefined,
           createdAt: order.createdAt?.toISOString() || new Date().toISOString(),
         }).catch((err) => console.error("Notification dispatch failed:", err));
+
+        notifyNewOrder({
+          orderId: order.id,
+          restaurantId,
+          restaurantName:
+            typeof restaurant?.name === "object"
+              ? (restaurant.name as any).en || (restaurant.name as any).tr
+              : (restaurant?.name as string) || "Restaurant",
+          restaurantEmail: restaurantProfile?.email || "",
+          customerName: user.displayName ?? "Customer",
+          items: summarizedItems,
+          total,
+        }).catch((err) => console.error("n8n webhook failed:", err));
 
         return reply.status(201).send({ success: true, data: order });
       } catch (error: any) {
@@ -585,6 +610,16 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({
         success: false,
         error: "Order not found",
+      });
+    }
+
+    if (
+      user.role === "restaurant_admin" &&
+      order.restaurantId !== user.restaurantId
+    ) {
+      return reply.status(403).send({
+        success: false,
+        error: "Forbidden: this order does not belong to your restaurant",
       });
     }
 

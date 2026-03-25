@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { adminApi } from "@/lib/api";
 import { Plus, Trash2, Edit2, Save, X } from "lucide-react";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function MenuManagementPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -56,7 +57,8 @@ export default function MenuManagementPage() {
       description: { tr: editForm.descTr, en: editForm.descEn },
       price: Number(editForm.price),
       category: editForm.category,
-      is_available: editForm.is_available,
+      is_available: editForm.is_available ?? true,
+      ...(editForm.imageUrl !== undefined && { image_url: editForm.imageUrl }),
     };
 
     if (isCreating) {
@@ -136,6 +138,33 @@ export default function MenuManagementPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-zinc-500 mb-1">
+                Description (TR)
+              </label>
+              <input
+                value={editForm.descTr || ""}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, descTr: e.target.value })
+                }
+                className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">
+                Description (EN)
+              </label>
+              <input
+                value={editForm.descEn || ""}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, descEn: e.target.value })
+                }
+                className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 mb-1">
                 Price (₺)
               </label>
               <input
@@ -160,6 +189,17 @@ export default function MenuManagementPage() {
                 className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 mb-1">
+              Item Image
+            </label>
+            <ImageUpload
+              onUpload={(url) => setEditForm({ ...editForm, imageUrl: url })}
+              defaultValue={editForm.imageUrl || ""}
+              bucket="menu-images"
+            />
           </div>
 
           <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
@@ -205,48 +245,178 @@ export default function MenuManagementPage() {
                 {items
                   .filter((i) => i.category === category)
                   .map((item, idx) => (
-                    <tr
-                      key={item.id}
-                      className={`${idx !== 0 ? "border-t border-zinc-100" : ""} hover:bg-zinc-50/50 transition`}
-                    >
-                      <td className="py-4 px-4">
-                        <p className="font-bold text-zinc-900">
-                          {typeof item.name === "object"
-                            ? item.name.en
-                            : item.name}
-                        </p>
-                        <p className="text-xs text-zinc-500 truncate max-w-xs">
-                          {typeof item.description === "object"
-                            ? item.description.en
-                            : item.description}
-                        </p>
-                      </td>
-                      <td className="py-4 px-4 font-medium text-zinc-700">
-                        {Number(item.price).toFixed(2)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <button
-                          onClick={() => handleToggleActive(item)}
-                          className={`px-3 py-1 rounded-full text-xs font-bold border transition ${item.is_available ? "bg-green-50 text-green-700 border-green-200" : "bg-zinc-100 text-zinc-500 border-zinc-200"}`}
-                        >
-                          {item.is_available ? "Active" : "Disabled"}
-                        </button>
-                      </td>
-                      <td className="py-4 px-4 flex justify-end gap-2">
-                        <button
-                          onClick={() => startEdit(item)}
-                          className="p-2 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-2 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+                    <React.Fragment key={item.id}>
+                      <tr
+                        className={`${idx !== 0 ? "border-t border-zinc-100" : ""} hover:bg-zinc-50/50 transition`}
+                      >
+                        <td className="py-4 px-4">
+                          <p className="font-bold text-zinc-900">
+                            {typeof item.name === "object"
+                              ? item.name.en
+                              : item.name}
+                          </p>
+                          <p className="text-xs text-zinc-500 truncate max-w-xs">
+                            {typeof item.description === "object"
+                              ? item.description.en
+                              : item.description}
+                          </p>
+                        </td>
+                        <td className="py-4 px-4 font-medium text-zinc-700">
+                          {Number(item.price).toFixed(2)}
+                        </td>
+                        <td className="py-4 px-4">
+                          <button
+                            onClick={() => handleToggleActive(item)}
+                            className={`px-3 py-1 rounded-full text-xs font-bold border transition ${item.is_available ? "bg-green-50 text-green-700 border-green-200" : "bg-zinc-100 text-zinc-500 border-zinc-200"}`}
+                          >
+                            {item.is_available ? "Active" : "Disabled"}
+                          </button>
+                        </td>
+                        <td className="py-4 px-4 flex justify-end gap-2">
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="p-2 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-2 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                      {editingId === item.id && !isCreating && (
+                        <tr className="bg-zinc-50 border-t border-zinc-200">
+                          <td colSpan={4} className="px-4 py-6">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Name (TR)
+                                </label>
+                                <input
+                                  value={editForm.nameTr || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      nameTr: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Name (EN)
+                                </label>
+                                <input
+                                  value={editForm.nameEn || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      nameEn: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Description (TR)
+                                </label>
+                                <input
+                                  value={editForm.descTr || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      descTr: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Description (EN)
+                                </label>
+                                <input
+                                  value={editForm.descEn || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      descEn: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Price (₺)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editForm.price || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      price: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                  Category
+                                </label>
+                                <input
+                                  value={editForm.category || ""}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      category: e.target.value,
+                                    })
+                                  }
+                                  className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm focus:border-[#E2103C] focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="mb-4">
+                              <label className="block text-xs font-bold text-zinc-500 mb-1">
+                                Item Image
+                              </label>
+                              <ImageUpload
+                                onUpload={(url) =>
+                                  setEditForm({ ...editForm, imageUrl: url })
+                                }
+                                defaultValue={
+                                  editForm.imageUrl || editForm.image_url || ""
+                                }
+                                bucket="menu-images"
+                                className="w-full max-w-xs aspect-video bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-100 transition-colors overflow-hidden group"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
+                              <button
+                                onClick={cancelEdit}
+                                className="px-4 h-10 rounded-lg text-zinc-500 font-bold hover:bg-zinc-100"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={saveEdit}
+                                className="px-6 h-10 rounded-lg bg-[#E2103C] text-white font-bold hover:bg-red-700 flex items-center gap-2"
+                              >
+                                <Save className="w-4 h-4" /> Save
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
               </tbody>
             </table>

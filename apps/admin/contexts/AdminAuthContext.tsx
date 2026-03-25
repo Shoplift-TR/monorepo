@@ -95,6 +95,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
         regularProfile &&
         (regularProfile.role === "restaurant_admin" ||
           regularProfile.role === "super_admin")
+        // TODO: profiles table needs is_active column to match admin_profiles security model
       ) {
         setUser({
           id: regularProfile.id,

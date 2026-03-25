@@ -27,6 +27,20 @@ export default function ImageUpload({
       const file = e.target.files?.[0];
       if (!file) return;
 
+      const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+      const MAX_SIZE_BYTES = 3 * 1024 * 1024;
+
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        alert("Only JPEG, PNG and WebP images are allowed");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (file.size > MAX_SIZE_BYTES) {
+        alert("File size must be under 3MB");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
       const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -68,7 +82,7 @@ export default function ImageUpload({
         className="hidden"
         ref={fileInputRef}
         onChange={handleUpload}
-        accept="image/*"
+        accept=".jpg,.jpeg,.png,.webp"
       />
 
       {preview ? (
@@ -97,7 +111,7 @@ export default function ImageUpload({
           <p className="text-sm font-bold text-zinc-600">
             Click to upload image
           </p>
-          <p className="text-xs text-zinc-400 mt-1">PNG, JPG up to 5MB</p>
+          <p className="text-xs text-zinc-400 mt-1">PNG, JPG, WebP up to 3MB</p>
         </div>
       )}
     </div>

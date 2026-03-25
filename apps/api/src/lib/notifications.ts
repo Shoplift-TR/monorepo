@@ -205,9 +205,7 @@ export async function sendOrderNotifications(
   if (bot && SUPER_ADMIN_CHAT_ID) {
     tasks.push(
       bot
-        .sendMessage(SUPER_ADMIN_CHAT_ID, message, {
-          parse_mode: "Markdown",
-        })
+        .sendMessage(SUPER_ADMIN_CHAT_ID, message, {})
         .catch((err: any) =>
           console.error("Telegram super admin notification failed:", err),
         ),
@@ -226,9 +224,7 @@ export async function sendOrderNotifications(
     if (profile?.telegram_chat_id) {
       tasks.push(
         bot
-          .sendMessage(profile.telegram_chat_id, message, {
-            parse_mode: "Markdown",
-          })
+          .sendMessage(profile.telegram_chat_id, message, {})
           .catch((err: any) =>
             console.error(
               "Telegram restaurant admin notification failed:",

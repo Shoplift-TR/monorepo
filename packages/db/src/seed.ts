@@ -20,6 +20,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "0",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.1264,
+    lng: 33.9401,
   },
   {
     slug: "hatay-doner",
@@ -32,6 +34,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "0",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.1271,
+    lng: 33.9415,
   },
   {
     slug: "big-bites",
@@ -44,6 +48,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "0",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.1258,
+    lng: 33.9388,
   },
   {
     slug: "lihman",
@@ -56,6 +62,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "0",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.128,
+    lng: 33.9425,
   },
   {
     slug: "raccoon",
@@ -68,6 +76,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "0",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.1247,
+    lng: 33.937,
   },
   {
     slug: "ennys-bistro",
@@ -80,6 +90,8 @@ const RESTAURANT_DATA = [
     deliveryFee: "70",
     address: "Famagusta, TRNC",
     logo: null,
+    lat: 35.129,
+    lng: 33.944,
   },
 ];
 
@@ -283,7 +295,15 @@ async function seed() {
 
     if (existing[0]) {
       restaurantId = existing[0].id;
-      console.log(`⏭️  Restaurant already exists: ${restData.name.en}`);
+      // Update coordinates if not set
+      await db
+        .update(restaurants)
+        .set({
+          lat: (restData as any).lat.toString(),
+          lng: (restData as any).lng.toString(),
+        })
+        .where(eq(restaurants.id, restaurantId));
+      console.log(`⭐ Restaurant already exists: ${restData.name.en}`);
     } else {
       const inserted = await db
         .insert(restaurants)
@@ -303,6 +323,8 @@ async function seed() {
           averageDeliveryMinutes: restData.slug === "ennys-bistro" ? 40 : 20,
           logo: restData.logo,
           slug: restData.slug,
+          lat: (restData as any).lat.toString(),
+          lng: (restData as any).lng.toString(),
         })
         .returning({ id: restaurants.id });
 

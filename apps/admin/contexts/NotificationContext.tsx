@@ -33,32 +33,25 @@ export function NotificationProvider({
   useEffect(() => {
     if (!user?.restaurantId) return;
 
+    const channelName = `restaurant:${user.restaurantId}`;
+
     const channel = supabaseAdmin
-      .channel("new-orders-bell")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "orders",
-          filter: `restaurant_id=eq.${user.restaurantId}`,
-        },
-        (payload: any) => {
-          const newOrder = payload.new as OrderNotification;
-          setNotifications((prev) => [newOrder, ...prev]);
-          playDing();
-        },
-      )
+      .channel(channelName)
+      .on("broadcast", { event: "new_order" }, (payload: any) => {
+        const newOrder = payload.payload as OrderNotification;
+        setNotifications((prev) => [newOrder, ...prev]);
+        playDing();
+      })
       .subscribe();
 
     return () => {
       supabaseAdmin.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.restaurantId]);
 
   const playDing = () => {
     const audio = new Audio("/sounds/notification.mp3");
-    audio.play().catch(() => {}); // Browser might block auto-play
+    audio.play().catch(() => {});
   };
 
   const clearNotifications = () => setNotifications([]);

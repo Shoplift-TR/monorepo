@@ -5,8 +5,8 @@ import { db, orders, menuItems, analyticsSnapshots } from "@shoplift/db";
 import { eq, and, asc, desc, inArray, gte } from "drizzle-orm";
 
 interface MenuBody {
-  name: string;
-  description: string;
+  name: { tr: string; en: string };
+  description: { tr: string; en: string };
   price: number;
   category: string;
   imageUrl?: string;
@@ -16,8 +16,8 @@ interface MenuBody {
 }
 
 interface UpdateMenuBody {
-  name?: string;
-  description?: string;
+  name?: { tr: string; en: string };
+  description?: { tr: string; en: string };
   price?: number;
   category?: string;
   is_available?: boolean;
@@ -185,23 +185,23 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         }
 
         // 2. Perform update
-        const allowedUpdates: any = {};
-        const fieldsMapping: Record<string, string> = {
-          name: "name",
-          description: "description",
-          price: "price",
-          category: "category",
-          is_available: "is_available",
-          modifiers: "modifiers",
-          image_url: "image_url",
-          display_order: "display_order",
-        };
-
-        Object.keys(fieldsMapping).forEach((key) => {
-          if (key in updates) {
-            allowedUpdates[fieldsMapping[key]] = (updates as any)[key];
-          }
-        });
+        const allowedUpdates: Record<string, any> = {};
+        if (updates.name !== undefined) allowedUpdates.name = updates.name;
+        if (updates.description !== undefined)
+          allowedUpdates.description = updates.description;
+        if (updates.price !== undefined)
+          allowedUpdates.price = String(updates.price);
+        if (updates.category !== undefined)
+          allowedUpdates.category = updates.category;
+        if (updates.is_available !== undefined)
+          allowedUpdates.isAvailable = updates.is_available;
+        if (updates.modifiers !== undefined)
+          allowedUpdates.modifiers = updates.modifiers;
+        if (updates.image_url !== undefined)
+          allowedUpdates.imageUrl = updates.image_url;
+        if (updates.display_order !== undefined)
+          allowedUpdates.displayOrder = updates.display_order;
+        allowedUpdates.updatedAt = new Date();
 
         const result = await db
           .update(menuItems)

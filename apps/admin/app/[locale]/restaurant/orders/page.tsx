@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAdminAuth } from "@/contexts/AdminAuthContext";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { adminApi } from "@/lib/api";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 const COLUMNS = [
   {
@@ -38,6 +39,7 @@ const COLUMNS = [
 
 export default function OrderQueuePage() {
   const { user } = useAdminAuth();
+  const { dismissNotification } = useNotifications();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
@@ -62,31 +64,33 @@ export default function OrderQueuePage() {
 
     fetchOrders();
 
+    const channelName = `restaurant:${user.restaurantId}`;
+
     const channel = supabaseAdmin
-      .channel("restaurant-orders")
+      .channel(channelName)
+      .on("broadcast", { event: "new_order" }, (payload: any) => {
+        const newOrder = payload.payload;
+        // New order beep
+        playBeep();
+        if (Notification.permission === "granted") {
+          new Notification("New Order!", {
+            body: `Order total: ₺${newOrder.total.toFixed(2)}`,
+          });
+        }
+        setOrders((prev) => [newOrder, ...prev]);
+      })
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "orders",
           filter: `restaurant_id=eq.${user.restaurantId}`,
         },
         (payload: any) => {
-          if (payload.eventType === "INSERT") {
-            // New order beep
-            playBeep();
-            if (Notification.permission === "granted") {
-              new Notification("New Order!", {
-                body: `Order total: ₺${payload.new.total.toFixed(2)}`,
-              });
-            }
-            setOrders((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === "UPDATE") {
-            setOrders((prev) =>
-              prev.map((o) => (o.id === payload.new.id ? payload.new : o)),
-            );
-          }
+          setOrders((prev) =>
+            prev.map((o) => (o.id === payload.new.id ? payload.new : o)),
+          );
         },
       )
       .subscribe();
@@ -126,6 +130,9 @@ export default function OrderQueuePage() {
     );
     if (data) {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? data : o)));
+      if (newStatus === "CONFIRMED") {
+        dismissNotification(orderId);
+      }
     }
   };
 
@@ -141,6 +148,7 @@ export default function OrderQueuePage() {
       setOrders((prev) =>
         prev.map((o) => (o.id === rejectingOrderId ? data : o)),
       );
+      dismissNotification(rejectingOrderId);
       setRejectingOrderId(null);
       setRejectionReason("");
     }

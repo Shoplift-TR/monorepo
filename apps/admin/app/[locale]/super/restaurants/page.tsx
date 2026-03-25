@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { adminApi } from "@/lib/api";
 import { Plus, Edit2, X } from "lucide-react";
+import ImageUpload from "@/components/ImageUpload";
 
 export default function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -22,6 +23,10 @@ export default function RestaurantsPage() {
     lat: 0,
     lng: 0,
     address: "",
+    slug: "",
+    deliveryFee: 0,
+    logo: "",
+    restaurantAdminEmail: "",
   });
 
   useEffect(() => {
@@ -49,6 +54,10 @@ export default function RestaurantsPage() {
         lat: rest.location?.coordinates?.[1] || 0,
         lng: rest.location?.coordinates?.[0] || 0,
         address: rest.address || "",
+        slug: rest.slug || "",
+        deliveryFee: Number(rest.deliveryFee || 0),
+        logo: rest.logo || "",
+        restaurantAdminEmail: "", // Not returned by API, only used for update
       });
     } else {
       setEditingRest(null);
@@ -70,7 +79,7 @@ export default function RestaurantsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    const payload: any = {
       name: { tr: form.nameTr, en: form.nameEn },
       description: { tr: form.descTr, en: form.descEn },
       owner_email: form.email,
@@ -79,14 +88,28 @@ export default function RestaurantsPage() {
       maintenance_fee: Number(form.maintenanceFee),
       location: { lat: Number(form.lat), lng: Number(form.lng) },
       address: form.address,
+      slug: form.slug,
+      delivery_fee: Number(form.deliveryFee),
+      logo: form.logo,
+      restaurant_admin_email: form.restaurantAdminEmail || undefined,
       operating_hours: { monday: { open: "09:00", close: "22:00" } },
     };
 
+    // Filter out undefined and empty strings
+    const cleanPayload = Object.fromEntries(
+      Object.entries(payload).filter(
+        ([_, v]) => v !== undefined && v !== "" && v !== null,
+      ),
+    );
+
     if (editingRest) {
-      const { data } = await adminApi.updateRestaurant(editingRest.id, payload);
+      const { data } = await adminApi.updateRestaurant(
+        editingRest.id,
+        cleanPayload,
+      );
       if (data) fetchData();
     } else {
-      const { data } = await adminApi.onboardRestaurant(payload as any);
+      const { data } = await adminApi.onboardRestaurant(cleanPayload as any);
       if (data) fetchData();
     }
     setDrawerOpen(false);
@@ -256,6 +279,96 @@ export default function RestaurantsPage() {
                   className="w-full h-10 px-3 border rounded-lg focus:outline-none focus:border-[#E2103C]"
                   required
                 />
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 mb-2">
+                    Restaurant Logo
+                  </label>
+                  <ImageUpload
+                    onUpload={(url) => setForm({ ...form, logo: url })}
+                    defaultValue={form.logo || ""}
+                    bucket="images"
+                    className="w-24 h-24 rounded-full bg-zinc-50 border-2 border-dashed 
+                               border-zinc-200 flex flex-col items-center justify-center 
+                               cursor-pointer hover:bg-zinc-100 transition-colors overflow-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 mb-1">
+                    URL Slug
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-zinc-400">
+                      shoplift.com/restaurants/
+                    </span>
+                    <input
+                      value={form.slug || ""}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          slug: e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9-]/g, "-")
+                            .replace(/-+/g, "-"),
+                        })
+                      }
+                      placeholder="restaurant-name"
+                      className="flex-1 h-10 px-3 rounded-lg border border-zinc-200 text-sm 
+                                 focus:border-[#E2103C] focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 mb-1">
+                      Delivery Fee (₺)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.deliveryFee ?? ""}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          deliveryFee: Number(e.target.value),
+                        })
+                      }
+                      className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm 
+                                 focus:border-[#E2103C] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 mb-1">
+                      Health Score
+                    </label>
+                    <input
+                      disabled
+                      value={editingRest?.healthScore || 100}
+                      className="w-full h-10 px-3 rounded-lg border border-zinc-50 bg-zinc-50 text-sm text-zinc-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 mb-1">
+                    Assign Restaurant Admin (email)
+                  </label>
+                  <input
+                    value={form.restaurantAdminEmail || ""}
+                    onChange={(e) =>
+                      setForm({ ...form, restaurantAdminEmail: e.target.value })
+                    }
+                    placeholder="admin@restaurant.com"
+                    className="w-full h-10 px-3 rounded-lg border border-zinc-200 text-sm 
+                               focus:border-[#E2103C] focus:outline-none"
+                  />
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Entering an email will link that account to this restaurant.
+                  </p>
+                </div>
               </div>
             </form>
 

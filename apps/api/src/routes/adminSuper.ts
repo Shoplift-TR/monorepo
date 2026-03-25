@@ -15,8 +15,20 @@ import {
   profiles,
   auditLogs,
   menuItems,
+  adminProfiles,
 } from "@shoplift/db";
 import { eq, and, desc, count, sum, sql } from "drizzle-orm";
+
+function generateSlug(name: any): string {
+  const str =
+    typeof name === "object" ? name.en || name.tr || "" : String(name);
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export default async function adminSuperRoutes(fastify: FastifyInstance) {
   // GET /admin/super/overview
@@ -89,6 +101,7 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
         operating_hours,
         location,
         address,
+        delivery_fee,
       } = request.body;
 
       if (commission_rate < 0 || commission_rate > 1) {
@@ -136,6 +149,8 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
             maintenanceFee: maintenance_fee.toString(),
             operatingHours: operating_hours,
             address,
+            slug: generateSlug(name),
+            deliveryFee: (request.body.delivery_fee ?? 0).toString(),
             isActive: true,
             rating: "0",
             totalOrders: 0,
@@ -155,6 +170,12 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
             restaurantId: restaurant.id,
           })
           .where(eq(profiles.id, owner.id));
+
+        // Update admin_profiles if the user exists there
+        await db
+          .update(adminProfiles)
+          .set({ restaurantId: restaurant.id })
+          .where(eq(adminProfiles.email, owner_email));
 
         const response: ApiResponse<any> = {
           success: true,
@@ -253,6 +274,27 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
         if (body.description !== undefined)
           updateObj.description = body.description;
 
+        if (body.slug !== undefined)
+          updateObj.slug = body.slug
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, "")
+            .replace(/[\s_-]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+        if (body.delivery_fee !== undefined)
+          updateObj.deliveryFee = body.delivery_fee.toString();
+        if (body.logo !== undefined) updateObj.logo = body.logo;
+        if (body.logo_url !== undefined) updateObj.logo = body.logo_url;
+        if (body.address !== undefined) updateObj.address = body.address;
+        if (body.lat !== undefined) updateObj.lat = body.lat.toString();
+        if (body.lng !== undefined) updateObj.lng = body.lng.toString();
+        if (body.average_delivery_minutes !== undefined)
+          updateObj.averageDeliveryMinutes = body.average_delivery_minutes;
+        if (body.cuisine_tags !== undefined)
+          updateObj.cuisineTags = body.cuisine_tags;
+
+        updateObj.updatedAt = new Date();
+
         const result = await db
           .update(restaurants)
           .set(updateObj)
@@ -260,6 +302,18 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
           .returning();
 
         const data = result[0];
+
+        if (body.restaurant_admin_email) {
+          await db
+            .update(profiles)
+            .set({ restaurantId: id, role: "restaurant_admin" })
+            .where(eq(profiles.email, body.restaurant_admin_email));
+
+          await db
+            .update(adminProfiles)
+            .set({ restaurantId: id })
+            .where(eq(adminProfiles.email, body.restaurant_admin_email));
+        }
 
         if (!data) {
           return reply.status(404).send({

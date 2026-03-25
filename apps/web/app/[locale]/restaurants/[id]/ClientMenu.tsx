@@ -9,6 +9,7 @@ import Link from "next/link";
 import { showToast } from "@/lib/toast";
 import Map from "@/components/Map";
 import { MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ClientMenuProps {
   restaurant: Restaurant;
@@ -146,7 +147,9 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                     <path d="M7 1l1.8 3.6L13 5.3l-3 2.9.7 4.1L7 10.3l-3.7 1.9.7-4.1-3-2.9 4.2-.7z" />
                   </svg>
                   <span className="text-white font-bold text-sm">
-                    {restaurant.rating?.toFixed(1) || "New"}
+                    {restaurant.rating
+                      ? Number(restaurant.rating).toFixed(1)
+                      : "New"}
                   </span>
                 </div>
                 <span className="text-white/40">•</span>
@@ -183,15 +186,12 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
               <button
                 key={cat}
                 onClick={() => scrollToCategory(cat)}
-                className={`
-                  flex-shrink-0 px-5 py-4 text-sm font-bold transition-all
-                  border-b-2 whitespace-nowrap
-                  ${
-                    activeCategory === cat
-                      ? "border-[#92fc40] text-[#101744] dark:text-[#e8eaf0]"
-                      : "border-transparent text-[#5e5e5e] dark:text-[#9ba3b8] hover:text-[#101744] dark:hover:text-[#e8eaf0]"
-                  }
-                `}
+                className={cn(
+                  "flex-shrink-0 px-5 py-4 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
+                  activeCategory === cat
+                    ? "border-[#92fc40] text-[#101744] dark:text-[#e8eaf0]"
+                    : "border-transparent text-[#5e5e5e] dark:text-[#9ba3b8] hover:text-[#101744] dark:hover:text-[#e8eaf0]",
+                )}
               >
                 {cat}
               </button>
@@ -278,9 +278,9 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                   return (
                     <div
                       key={item.id}
-                      className="bg-white dark:bg-[#1e2235] rounded-[12px]
-                                 shadow-[0_12px_24px_rgba(0,4,53,0.08)]
-                                 overflow-hidden flex gap-0"
+                      className={cn(
+                        "bg-white dark:bg-[#1e2235] rounded-[12px] shadow-[0_12px_24px_rgba(0,4,53,0.08)] overflow-hidden flex gap-0",
+                      )}
                     >
                       {/* Image */}
                       <div className="w-[120px] flex-shrink-0 relative">
@@ -308,8 +308,9 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                           </h3>
                           {itemDesc && (
                             <p
-                              className="text-[#5e5e5e] dark:text-[#9ba3b8] 
-                                          text-xs leading-relaxed line-clamp-2"
+                              className={cn(
+                                "text-[#5e5e5e] dark:text-[#9ba3b8] text-xs leading-relaxed line-clamp-2",
+                              )}
                             >
                               {itemDesc}
                             </p>
@@ -321,10 +322,9 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                           </span>
                           <button
                             onClick={() => handleAddItem(item)}
-                            className="w-8 h-8 rounded-full bg-[#101744] dark:bg-[#92fc40]
-                                       flex items-center justify-center
-                                       hover:bg-[#1a2456] dark:hover:bg-[#77df1e]
-                                       transition-colors active:scale-95"
+                            className={cn(
+                              "w-8 h-8 rounded-full bg-[#101744] dark:bg-[#92fc40] flex items-center justify-center hover:bg-[#1a2456] dark:hover:bg-[#77df1e] transition-colors active:scale-95",
+                            )}
                           >
                             <svg
                               width="14"

@@ -79,6 +79,11 @@ export const adminApi = {
     fetcher<any[]>(`/admin/super/audit${params ? `?${params}` : ""}`),
   getInventory: (params?: string) =>
     fetcher<any[]>(`/admin/super/inventory${params ? `?${params}` : ""}`),
+  assignRestaurantAdmin: (restaurantId: string, email: string) =>
+    fetcher<any>(`/admin/super/restaurants/${restaurantId}`, {
+      method: "PUT",
+      body: JSON.stringify({ restaurant_admin_email: email }),
+    }),
 
   // Restaurant Admin
   getOrders: () => fetcher<Order[]>("/admin/restaurant/orders"),

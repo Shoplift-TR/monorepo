@@ -85,3 +85,6 @@ infra/firestore/firestore.rules
 apps/api/service-account.json
 
 *.sql
+
+/.agents
+

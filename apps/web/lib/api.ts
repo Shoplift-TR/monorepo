@@ -36,8 +36,16 @@ async function fetcher<T>(
 ): Promise<ApiResult<T>> {
   const url = `${BASE_URL}${endpoint}`;
 
+  // Special handling for logout - don't send token
+  const shouldSendToken = endpoint !== "/auth/logout";
+
   // Auto-fetch token from Supabase session if not explicitly provided
-  const resolvedToken = token !== undefined ? token : await getSupabaseToken();
+  const resolvedToken =
+    shouldSendToken && token !== undefined
+      ? token
+      : shouldSendToken
+        ? await getSupabaseToken()
+        : null;
 
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -48,6 +56,7 @@ async function fetcher<T>(
     headers["Content-Type"] = "application/json";
   }
 
+  // Only set Authorization if we have a token and should send it
   if (resolvedToken) {
     headers["Authorization"] = `Bearer ${resolvedToken}`;
   }
@@ -105,7 +114,7 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  logout: () => fetcher<any>("/auth/logout", { method: "DELETE" }),
+  logout: () => fetcher<any>("/auth/logout", { method: "DELETE" }, null), //avoid sending auth headers after logout so backend stops returning 401 errors
   me: (token?: string | null) =>
     fetcher<{
       uid: string;

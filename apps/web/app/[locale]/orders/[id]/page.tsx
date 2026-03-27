@@ -313,21 +313,21 @@ export default function OrderDetailsPage() {
             <div className="pt-4 border-t border-zinc-100 space-y-2">
               <div className="flex justify-between text-zinc-600 text-sm">
                 <span>Subtotal</span>
-                <span>₺{order.subtotal.toFixed(2)}</span>
+                <span>₺{Number(order.subtotal).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-zinc-600 text-sm">
                 <span>Delivery Fee</span>
-                <span>₺{order.delivery_fee.toFixed(2)}</span>
+                <span>₺{Number(order.delivery_fee).toFixed(2)}</span>
               </div>
               {order.discount > 0 && (
                 <div className="flex justify-between text-green-600 text-sm">
                   <span>Discount</span>
-                  <span>-₺{order.discount.toFixed(2)}</span>
+                  <span>-₺{Number(order.discount).toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-zinc-900 font-bold text-lg pt-2">
                 <span>Total</span>
-                <span>₺{order.total.toFixed(2)}</span>
+                <span>₺{Number(order.total).toFixed(2)}</span>
               </div>
             </div>
           </div>

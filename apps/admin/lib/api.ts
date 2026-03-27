@@ -15,12 +15,20 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 type ApiResult<T> = { data: T | null; error: string | null };
 
+let currentToken: string | null = null;
+supabaseAdmin.auth.onAuthStateChange((event, session) => {
+  currentToken = session?.access_token || null;
+});
+
 async function fetcher<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<ApiResult<T>> {
-  const { data: session } = await supabaseAdmin.auth.getSession();
-  const token = session?.session?.access_token;
+  if (!currentToken) {
+    const { data: session } = await supabaseAdmin.auth.getSession();
+    currentToken = session?.session?.access_token || null;
+  }
+  const token = currentToken;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -40,17 +48,20 @@ async function fetcher<T>(
     });
 
     if (response.status === 401) {
+      console.error(`fetcher ${endpoint} 401 Unauthorized`);
       return { data: null, error: "Unauthorized" };
     }
 
     const result: ApiResponse<T> = await response.json();
 
     if (!response.ok || !result.success) {
+      console.error(`fetcher ${endpoint} error:`, result.error, result);
       return { data: null, error: result.error || "An error occurred" };
     }
 
     return { data: result.data as T, error: null };
   } catch (error: any) {
+    console.error(`fetcher ${endpoint} network error:`, error);
     return { data: null, error: error.message || "Network error" };
   }
 }

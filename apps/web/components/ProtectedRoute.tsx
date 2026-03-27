@@ -1,7 +1,6 @@
 "use client";
-
 import { useAuth } from "@/contexts/AuthContext";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "@/lib/navigation";
 import { useEffect } from "react";
 
 interface ProtectedRouteProps {
@@ -15,32 +14,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { locale } = useParams();
 
   useEffect(() => {
     if (loading) return;
 
     if (!user) {
-      router.push(`/${locale}/login`);
+      router.push("/login");
       return;
     }
 
     if (requiredRole) {
       const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
       if (!roles.includes(user.role)) {
-        // Redirect to their respective dashboard
-        if (user.role === "super_admin") {
-          router.push(`/${locale}/admin/super`);
-        } else if (user.role === "restaurant_admin") {
-          router.push(`/${locale}/admin/restaurant`);
-        } else if (user.role === "driver") {
-          router.push(`/${locale}/driver`);
-        } else {
-          router.push(`/${locale}`);
-        }
+        router.push("/");
       }
     }
-  }, [user, loading, requiredRole, locale, router]);
+  }, [user, loading, requiredRole, router]);
 
   if (loading || !user) {
     return (
@@ -53,7 +42,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     if (!roles.includes(user.role)) {
-      return null; // The redirect in useEffect handles it
+      return null;
     }
   }
 

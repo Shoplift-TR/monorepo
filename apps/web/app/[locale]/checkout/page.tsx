@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useRouter } from "@/lib/navigation";
 import { useCart } from "@/contexts/CartContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { addressesApi, ordersApi, promosApi } from "@/lib/api";
+import { addressesApi, ordersApi, promosApi, restaurantsApi } from "@/lib/api";
 import {
   ArrowLeft,
   ChevronRight,
@@ -43,8 +44,9 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cash">("card");
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [restaurantDeliveryFee, setRestaurantDeliveryFee] = useState(0);
 
-  const deliveryFee = 30.0;
+  const deliveryFee = restaurantDeliveryFee;
   const discount = appliedPromo?.discount || 0;
   const grandTotal = totalPrice + deliveryFee - discount;
 
@@ -53,8 +55,15 @@ export default function CheckoutPage() {
       // Empty cart handling
     } else {
       fetchAddresses();
+      if (restaurantId) {
+        restaurantsApi.get(restaurantId).then(({ data }) => {
+          if (data) {
+            setRestaurantDeliveryFee(Number((data as any).deliveryFee ?? 0));
+          }
+        });
+      }
     }
-  }, [items]);
+  }, [items, restaurantId]);
 
   const fetchAddresses = async () => {
     const { data, error } = await addressesApi.list();
@@ -124,7 +133,7 @@ export default function CheckoutPage() {
 
     if (data) {
       clearCart();
-      router.push(`/${locale}/orders/${data.id}`);
+      router.push(`/orders/${data.id}`);
     } else {
       showToast.error(error || "Failed to place order");
     }
@@ -136,7 +145,7 @@ export default function CheckoutPage() {
         <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
           <p className="text-zinc-500 mb-6">{t("emptyCart")}</p>
           <button
-            onClick={() => router.push(`/${locale}`)}
+            onClick={() => router.push(`/`)}
             className="px-8 h-12 rounded-full bg-[#E2103C] text-white font-bold"
           >
             {t("stepAddress")}

@@ -246,17 +246,35 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // POST /auth/logout
   // DELETE /auth/logout
   fastify.delete(
     "/logout",
-    {
-      preHandler: [verifyAuth],
-    },
+    // REMOVE: preHandler: [verifyAuth],  // ← Remove this line
     async (request, reply) => {
       try {
-        if (request.user?.uid) {
-          await supabase.auth.admin.signOut(request.user.uid);
+        // Try to get token to sign out the specific user
+        const authHeader = request.headers.authorization;
+        let token: string | undefined;
+
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.split("Bearer ")[1];
+        } else if (request.cookies.token) {
+          token = request.cookies.token;
         }
+
+        // If we have a token, try to sign out that specific user
+        if (token) {
+          try {
+            const { data: authData } = await supabase.auth.getUser(token);
+            if (authData.user) {
+              await supabase.auth.admin.signOut(authData.user.id);
+            }
+          } catch (_error) {
+            // Ignore auth errors on logout
+          }
+        }
+
         reply.clearCookie("token", { path: "/" });
         return reply.send({ success: true });
       } catch (error: any) {

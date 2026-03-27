@@ -224,7 +224,22 @@ export async function sendOrderNotifications(
     if (profile?.telegram_chat_id) {
       tasks.push(
         bot
-          .sendMessage(profile.telegram_chat_id, message, {})
+          .sendMessage(profile.telegram_chat_id, message, {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: "✅ Confirm",
+                    callback_data: `confirm:${payload.orderId}`,
+                  },
+                  {
+                    text: "❌ Reject",
+                    callback_data: `reject:${payload.orderId}`,
+                  },
+                ],
+              ],
+            },
+          })
           .catch((err: any) =>
             console.error(
               "Telegram restaurant admin notification failed:",

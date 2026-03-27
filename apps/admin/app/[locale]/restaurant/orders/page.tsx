@@ -74,7 +74,7 @@ export default function OrderQueuePage() {
         playBeep();
         if (Notification.permission === "granted") {
           new Notification("New Order!", {
-            body: `Order total: ₺${newOrder.total.toFixed(2)}`,
+            body: `Order total: ₺${Number(newOrder.total).toFixed(2)}`,
           });
         }
         setOrders((prev) => [newOrder, ...prev]);
@@ -290,7 +290,7 @@ export default function OrderQueuePage() {
                             {order.items.length} items
                           </span>
                           <span className="font-bold text-[#E2103C]">
-                            ₺{order.total.toFixed(2)}
+                            ₺{Number(order.total).toFixed(2)}
                           </span>
                         </div>
 

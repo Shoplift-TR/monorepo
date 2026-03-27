@@ -107,7 +107,8 @@
     "placeOrder": "Place Order",
     "invalidPromo": "Invalid promo code",
     "promoApplied": "Promo applied",
-    "emptyCart": "Your cart is empty."
+    "emptyCart": "Your cart is empty.",
+    "cancel": "Cancel"
   },
   "orderDetail": {
     "title": "Order Tracking",

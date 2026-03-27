@@ -78,8 +78,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const logout = async () => {
-    await authApi.logout();
+    try {
+      // 1. Sign out from API (clears httpOnly cookie)
+      await authApi.logout();
+    } catch (error) {
+      console.error("API logout failed:", error);
+    }
+
+    try {
+      // 2. Sign out from Supabase browser client (clears local session)
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Supabase logout failed:", error);
+    }
+
+    // 3. Clear user state
     setUser(null);
+
+    // 4. Redirect to login
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }

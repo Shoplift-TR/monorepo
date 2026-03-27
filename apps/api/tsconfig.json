@@ -1,9 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "dist"
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "noEmit": false
   },
   "ts-node": {
     "esm": true,

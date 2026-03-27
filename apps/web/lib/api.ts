@@ -14,9 +14,20 @@ import {
   CreateTicketBody,
 } from "@shoplift/types";
 
+import { supabase } from "@/lib/supabase-client";
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 type ApiResult<T> = { data: T | null; error: string | null };
+
+const getSupabaseToken = async (): Promise<string | null> => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+};
 
 async function fetcher<T>(
   endpoint: string,
@@ -25,14 +36,20 @@ async function fetcher<T>(
 ): Promise<ApiResult<T>> {
   const url = `${BASE_URL}${endpoint}`;
 
+  // Auto-fetch token from Supabase session if not explicitly provided
+  const resolvedToken = token !== undefined ? token : await getSupabaseToken();
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  // Use Bearer token if provided, otherwise fall back to cookie
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // Only set Content-Type for requests with bodies
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  if (resolvedToken) {
+    headers["Authorization"] = `Bearer ${resolvedToken}`;
   }
 
   const defaultOptions: RequestInit = {

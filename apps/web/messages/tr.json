@@ -107,7 +107,8 @@
     "placeOrder": "Siparişi Onayla",
     "invalidPromo": "Geçersiz kupon kodu",
     "promoApplied": "Kupon uygulandı",
-    "emptyCart": "Sepetiniz boş."
+    "emptyCart": "Sepetiniz boş.",
+    "cancel": "İptal"
   },
   "orderDetail": {
     "title": "Sipariş Takibi",

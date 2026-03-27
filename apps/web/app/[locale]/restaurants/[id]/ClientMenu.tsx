@@ -88,9 +88,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
         {/* Back button */}
         <button
           onClick={() => router.push("/restaurants")}
-          className="absolute top-6 left-6 w-10 h-10 rounded-full 
-                     bg-white/10 backdrop-blur-sm flex items-center justify-center
-                     hover:bg-white/20 transition-colors z-10"
+          className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors z-10"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
@@ -107,10 +105,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
           <div className="max-w-5xl mx-auto flex items-end gap-4">
             {/* Logo circle */}
-            <div
-              className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm 
-                            border-2 border-white/20 flex-shrink-0 overflow-hidden"
-            >
+            <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/20 flex-shrink-0 overflow-hidden">
               {restaurant.logo ? (
                 <img
                   src={restaurant.logo}
@@ -118,10 +113,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div
-                  className="w-full h-full bg-[#92fc40]/20 flex items-center 
-                                justify-center"
-                >
+                <div className="w-full h-full bg-[#92fc40]/20 flex items-center justify-center">
                   <span className="text-[#92fc40] font-bold text-xl">
                     {name.charAt(0)}
                   </span>
@@ -130,10 +122,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <h1
-                className="text-white font-extrabold text-2xl md:text-3xl 
-                             tracking-[-0.04em] leading-tight mb-1"
-              >
+              <h1 className="text-white font-extrabold text-2xl md:text-3xl tracking-[-0.04em] leading-tight mb-1">
                 {name}
               </h1>
               <div className="flex items-center gap-3 flex-wrap">
@@ -175,11 +164,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
       </div>
 
       {/* CATEGORY TAB BAR — sticky */}
-      <div
-        className="sticky top-16 z-30 bg-white/80 dark:bg-[#1a1d2e]/80 
-                      backdrop-blur-[24px] border-b border-[rgba(0,4,53,0.06)]
-                      dark:border-[rgba(255,255,255,0.06)]"
-      >
+      <div className="sticky top-16 z-30 bg-white/80 dark:bg-[#1a1d2e]/80 backdrop-blur-[24px] border-b border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex gap-0 overflow-x-auto no-scrollbar">
             {categories.map((cat) => (
@@ -256,10 +241,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
             >
               {/* Category heading */}
               <div className="mb-6">
-                <h2
-                  className="text-[#101744] dark:text-[#e8eaf0] font-extrabold 
-                               text-xl tracking-[-0.04em]"
-                >
+                <h2 className="text-[#101744] dark:text-[#e8eaf0] font-extrabold text-xl tracking-[-0.04em]">
                   {cat}
                 </h2>
                 <div className="h-[2px] w-8 bg-[#92fc40] mt-1" />
@@ -295,15 +277,9 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                       </div>
 
                       {/* Content */}
-                      <div
-                        className="flex-1 p-4 flex flex-col justify-between 
-                                      min-w-0"
-                      >
+                      <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
                         <div>
-                          <h3
-                            className="text-[#101744] dark:text-[#e8eaf0] 
-                                         font-bold text-[0.9375rem] leading-tight mb-1"
-                          >
+                          <h3 className="text-[#101744] dark:text-[#e8eaf0] font-bold text-[0.9375rem] leading-tight mb-1">
                             {itemName}
                           </h3>
                           {itemDesc && (
@@ -334,14 +310,7 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
                             >
                               <path
                                 d="M7 2v10M2 7h10"
-                                stroke={
-                                  typeof document !== "undefined" &&
-                                  document.documentElement.classList.contains(
-                                    "dark",
-                                  )
-                                    ? "#0b2000"
-                                    : "white"
-                                }
+                                className="stroke-white dark:stroke-[#0b2000]"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                               />
@@ -360,17 +329,11 @@ export function ClientMenu({ restaurant, menu, locale }: ClientMenuProps) {
 
       {/* STICKY CART BAR */}
       {totalItems > 0 && restaurantId === restaurant.id && (
-        <div
-          className="fixed bottom-0 left-0 w-full p-4 z-40
-                        bg-white/80 dark:bg-[#1a1d2e]/80 backdrop-blur-[24px]
-                        border-t border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]"
-        >
+        <div className="fixed bottom-0 left-0 w-full p-4 z-40 bg-white/80 dark:bg-[#1a1d2e]/80 backdrop-blur-[24px] border-t border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)]">
           <div className="max-w-5xl mx-auto">
             <Link
               href="/checkout"
-              className="flex items-center justify-between w-full h-[52px] px-5 
-                         rounded-full bg-[#101744] hover:bg-[#1a2456] 
-                         transition-colors text-white shadow-md active:scale-[0.98]"
+              className="flex items-center justify-between w-full h-[52px] px-5 rounded-full bg-[#101744] hover:bg-[#1a2456] transition-colors text-white shadow-md active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
                 <div
@@ -536,11 +499,12 @@ function ModifierModal({
                     </p>
                   </div>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
                       mod.required
                         ? "bg-[#92fc40]/10 text-[#0b2000] dark:text-[#92fc40]"
-                        : "bg-[#edeeef] dark:bg-[#222536] text-[#5e5e5e] dark:text-[#9ba3b8]"
-                    }`}
+                        : "bg-[#edeeef] dark:bg-[#222536] text-[#5e5e5e] dark:text-[#9ba3b8]",
+                    )}
                   >
                     {mod.required ? t("required") : t("optional")}
                   </span>
@@ -557,11 +521,12 @@ function ModifierModal({
                     return (
                       <label
                         key={i}
-                        className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
+                        className={cn(
+                          "flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all",
                           isSelected
                             ? "border-[#92fc40] bg-[#92fc40]/5"
-                            : "border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] bg-transparent"
-                        }`}
+                            : "border-[rgba(0,4,53,0.06)] dark:border-[rgba(255,255,255,0.06)] bg-transparent",
+                        )}
                       >
                         <div className="flex items-center gap-3">
                           <div

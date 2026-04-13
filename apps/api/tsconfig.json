@@ -3,7 +3,8 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "node",
-    "noEmit": false
+    "noEmit": false,
+    "outDir": "dist"
   },
   "ts-node": {
     "esm": true,

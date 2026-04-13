@@ -208,7 +208,7 @@ export default async function adminSuperRoutes(fastify: FastifyInstance) {
           totalRatings: 0,
           healthScore: 100,
           averageDeliveryMinutes: 30,
-        })
+        } as any)
         .returning();
 
       const restaurant = restaurantResult[0];

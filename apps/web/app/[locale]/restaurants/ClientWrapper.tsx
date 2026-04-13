@@ -5,7 +5,7 @@ import { Restaurant } from "@shoplift/types";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Link } from "@/lib/navigation";
-import { MapPin } from "lucide-react";
+import { MapPin, Clock, Timer } from "lucide-react";
 
 interface ClientWrapperProps {
   initialRestaurants: Restaurant[];
@@ -58,6 +58,17 @@ export default function ClientWrapper({
   };
 
   const isNearMeActive = searchParams.has("lat") && searchParams.has("lng");
+  const isOpenNowActive = searchParams.get("open_now") === "true";
+
+  const handleOpenNow = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (isOpenNowActive) {
+      params.delete("open_now");
+    } else {
+      params.set("open_now", "true");
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] pb-24">
@@ -71,7 +82,7 @@ export default function ClientWrapper({
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 mb-6">
           <button
             onClick={handleNearMe}
-            className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-[20px] text-sm font-bold border transition-all ${
+            className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-[20px] text-sm font-bold border transition-all ${
               isNearMeActive
                 ? "border-[#92fc40] bg-[#92fc40]/10 text-[#2a4d14]"
                 : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 shadow-sm"
@@ -83,13 +94,27 @@ export default function ClientWrapper({
             Near Me
           </button>
 
+          <button
+            onClick={handleOpenNow}
+            className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-[20px] text-sm font-bold border transition-all ${
+              isOpenNowActive
+                ? "border-[#101744] bg-[#101744] text-white"
+                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 shadow-sm"
+            }`}
+          >
+            <Clock
+              className={`w-3.5 h-3.5 ${isOpenNowActive ? "text-white" : "text-zinc-400"}`}
+            />
+            Open Now
+          </button>
+
           {CUISINES.map((cuisine) => {
             const isActive = currentCuisine === cuisine;
             return (
               <button
                 key={cuisine}
                 onClick={() => handleCuisineClick(cuisine)}
-                className={`flex-shrink-0 px-4 py-2 rounded-[20px] text-sm font-medium border transition-colors ${
+                className={`shrink-0 px-4 py-2 rounded-[20px] text-sm font-medium border transition-colors ${
                   isActive
                     ? "border-[#E2103C] bg-[#FFF0F3] text-[#E2103C]"
                     : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"

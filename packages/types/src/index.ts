@@ -171,7 +171,7 @@ export interface ApiError {
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: ApiError;
+  error?: ApiError | string | null;
 }
 
 export interface AdminOverviewResponse {
@@ -258,4 +258,38 @@ export interface CreateOrderRequest {
   notes?: string;
   idempotencyKey?: string;
   locale?: "en" | "tr";
+}
+
+// Restaurant hours domain model
+export interface RestaurantHours {
+  id: string;
+  restaurantId: string;
+  dayOfWeek: number; // 0-6 (Sunday-Saturday)
+  openTime: string | null; // HH:MM
+  closeTime: string | null; // HH:MM
+  isClosed: boolean;
+  timezone: string;
+}
+
+// Restaurant filtering params
+export interface GetRestaurantsQuery {
+  cuisine?: string;
+  search?: string;
+  open_now?: boolean;
+  open_between_start?: string; // HH:MM
+  open_between_end?: string; // HH:MM
+  tz?: string;
+  lat?: number;
+  lng?: number;
+}
+
+// Receipt metadata
+export interface OrderReceipt {
+  id: string;
+  orderId: string;
+  pdfUrl: string; // Keeping PNG as per instructions, but using a generic field name if needed, or specific
+  pngUrl: string;
+  generatedAt: string;
+  sentAt: string | null;
+  status: "pending" | "generated" | "failed";
 }

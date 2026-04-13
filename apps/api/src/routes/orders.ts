@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabase } from "../lib/supabase.js";
 import { notifyOrderStatusChange, notifyNewOrder } from "../lib/notifier.js";
 import { sendOrderNotifications } from "../lib/notifications.js";
+import { processReceipt } from "../lib/receipts.js";
 import { validatePromo } from "../lib/promos.js";
 import { verifyAuth } from "../middleware/auth.js";
 import { writeAuditLog } from "../lib/audit.js";
@@ -13,6 +14,7 @@ import {
   addresses,
   restaurants,
   profiles,
+  receipts,
 } from "@shoplift/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
@@ -610,6 +612,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           }).catch((err) => console.error("Status change notify failed:", err));
         }
 
+        // Trigger Receipt Generation if status is CONFIRMED (Async)
+        if (newStatus === "CONFIRMED") {
+          processReceipt(id).catch((err) =>
+            console.error("Receipt processing failed:", err),
+          );
+        }
+
         return reply.send({ success: true, data: updatedOrder });
       } catch (error: any) {
         request.log.error(error);
@@ -761,6 +770,78 @@ export default async function orderRoutes(fastify: FastifyInstance) {
       });
 
       return reply.send({ success: true, data: updated[0] });
+    },
+  );
+
+  /**
+   * GET /orders/:id/receipt
+   */
+  fastify.get(
+    "/:id/receipt",
+    { preHandler: [verifyAuth] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const user = request.user!;
+
+      try {
+        const orderResult = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.id, id))
+          .limit(1);
+
+        const order = orderResult[0];
+        if (!order) {
+          return reply.status(404).send({
+            success: false,
+            error: { code: "NOT_FOUND", message: "Order not found" },
+          });
+        }
+
+        // RBAC Check
+        const canAccess =
+          order.customerId === user.id ||
+          user.role === "super_admin" ||
+          (user.role === "restaurant_admin" &&
+            order.restaurantId === user.restaurantId);
+
+        if (!canAccess) {
+          return reply.status(403).send({
+            success: false,
+            error: { code: "FORBIDDEN", message: "Not authorized" },
+          });
+        }
+
+        const receiptResult = await db
+          .select()
+          .from(receipts)
+          .where(eq(receipts.orderId, id))
+          .limit(1);
+
+        const receipt = receiptResult[0];
+        if (!receipt || receipt.status !== "generated") {
+          return reply.status(404).send({
+            success: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "Receipt not generated yet or failed",
+            },
+          });
+        }
+
+        // Redirect to public URL or proxy the image
+        // For simplicity and to follow "downloadable PNG" requirement, we'll proxy it or redirect
+        return reply.redirect(receipt.pngUrl);
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to fetch receipt",
+          },
+        });
+      }
     },
   );
 }

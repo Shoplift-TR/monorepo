@@ -8,3 +8,5 @@ export * from "./support-tickets.js";
 export * from "./audit-logs.js";
 export * from "./analytics-snapshots.js";
 export * from "./admin-profiles.js";
+export * from "./restaurant-hours.js";
+export * from "./receipts.js";

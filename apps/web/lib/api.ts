@@ -90,7 +90,7 @@ async function fetcher<T>(
       return { data: null, error: errorMessage };
     }
 
-    return { data: result.data, error: null };
+    return { data: (result.data as T) ?? null, error: null };
   } catch (error: any) {
     return { data: null, error: error.message || "Network error" };
   }
@@ -164,6 +164,7 @@ export const ordersApi = {
   cancel: (id: string) =>
     fetcher<any>(`/orders/${id}/cancel`, { method: "POST" }),
   history: () => fetcher<Order[]>("/orders/history"),
+  getReceiptUrl: (id: string) => `${BASE_URL}/orders/${id}/receipt`,
 };
 
 // --- Promos ---

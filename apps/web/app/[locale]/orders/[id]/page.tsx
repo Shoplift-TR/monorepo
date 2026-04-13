@@ -14,6 +14,7 @@ import {
   Bike,
   Home,
   XCircle,
+  FileText,
 } from "lucide-react";
 import Map from "@/components/Map";
 
@@ -120,7 +121,7 @@ export default function OrderDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6 bg-zinc-50">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50">
         <div className="w-10 h-10 border-4 border-red-500 border-t-transparent animate-spin rounded-full" />
       </div>
     );
@@ -188,7 +189,7 @@ export default function OrderDetailsPage() {
                   <div className="flex flex-col items-center">
                     <div
                       className={`
-                      w-8 h-8 rounded-full flex items-center justify-center relative z-[1]
+                      w-8 h-8 rounded-full flex items-center justify-center relative z-1
                       ${
                         isActive
                           ? "bg-[#E2103C] shadow-lg shadow-red-200"
@@ -332,6 +333,25 @@ export default function OrderDetailsPage() {
             </div>
           </div>
         </div>
+
+        {/* Receipt Button */}
+        {[
+          "CONFIRMED",
+          "PREPARING",
+          "READY_FOR_PICKUP",
+          "OUT_FOR_DELIVERY",
+          "DELIVERED",
+        ].includes(order.status) && (
+          <a
+            href={ordersApi.getReceiptUrl(id as string)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full h-12 rounded-[12px] bg-white border border-zinc-200 text-zinc-900 font-bold hover:bg-zinc-50 transition-colors"
+          >
+            <FileText className="w-5 h-5 text-zinc-500" />
+            Download Receipt (PNG)
+          </a>
+        )}
 
         {/* Cancel Button */}
         {order.status === "PENDING" && (

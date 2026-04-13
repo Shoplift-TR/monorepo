@@ -1,102 +1,155 @@
 import { FastifyInstance } from "fastify";
-import { verifyAuth, requireRestaurantAdmin } from "../../middleware/auth.js";
-import { ApiResponse } from "@shoplift/types";
+import { z } from "zod";
+import { verifyAuth } from "../../middleware/auth.js";
+import { createOwnershipMiddleware } from "../../middleware/ownership.js";
 import { db, orders, menuItems, analyticsSnapshots } from "@shoplift/db";
 import { eq, and, asc, desc, inArray, gte } from "drizzle-orm";
+import { writeAuditLog } from "../../lib/audit.js";
 
-interface MenuBody {
-  name: { tr: string; en: string };
-  description: { tr: string; en: string };
-  price: number;
-  category: string;
-  imageUrl?: string;
-  isAvailable?: boolean;
-  modifiers?: any;
-  foodCostPercent?: number;
-}
+// Zod Schemas
+const MenuBodySchema = z
+  .object({
+    name: z
+      .object({
+        tr: z.string().trim().min(1),
+        en: z.string().trim().min(1),
+      })
+      .strict(),
+    description: z
+      .object({
+        tr: z.string().trim().optional(),
+        en: z.string().trim().optional(),
+      })
+      .strict()
+      .optional(),
+    price: z.number().int().nonnegative(), // INTEGER (cents)
+    category: z.string().trim().min(1),
+    imageUrl: z.string().url().trim().optional().or(z.literal("")),
+    isAvailable: z.boolean().optional(),
+    modifiers: z.array(z.any()).optional(), // TODO: stricter modifier schema later
+    foodCostPercent: z.number().min(0).max(100).optional(),
+  })
+  .strict();
 
-interface UpdateMenuBody {
-  name?: { tr: string; en: string };
-  description?: { tr: string; en: string };
-  price?: number;
-  category?: string;
-  is_available?: boolean;
-  modifiers?: any;
-  image_url?: string;
-  display_order?: number;
-}
+const UpdateMenuBodySchema = z
+  .object({
+    name: z
+      .object({
+        tr: z.string().trim().min(1),
+        en: z.string().trim().min(1),
+      })
+      .strict()
+      .optional(),
+    description: z
+      .object({
+        tr: z.string().trim().optional(),
+        en: z.string().trim().optional(),
+      })
+      .strict()
+      .optional(),
+    price: z.number().int().nonnegative().optional(),
+    category: z.string().trim().min(1).optional(),
+    is_available: z.boolean().optional(),
+    modifiers: z.array(z.any()).optional(),
+    image_url: z.string().url().trim().optional().or(z.literal("")),
+    display_order: z.number().int().optional(),
+    food_cost_percent: z.number().min(0).max(100).optional(),
+  })
+  .strict();
 
 export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
-  // All routes in this plugin require restaurant admin access
+  // All routes in this plugin require restaurant admin access and ownership verification
   fastify.addHook("preHandler", async (request, reply) => {
     await verifyAuth(request, reply);
     if (!reply.sent) {
-      await requireRestaurantAdmin(request, reply);
+      await createOwnershipMiddleware("restaurant_id")(request, reply);
     }
   });
 
   /**
    * GET /admin/restaurant/orders
-   * Query orders table where restaurant_id = request.restaurantId and status in ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].
-   * Order by created_at ascending. Return array.
    */
   fastify.get("/orders", async (request, reply) => {
-    const restaurantId = request.restaurantId as string;
-
-    const result = await db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.restaurantId, restaurantId),
-          inArray(orders.status, [
-            "PENDING",
-            "CONFIRMED",
-            "PREPARING",
-            "READY_FOR_PICKUP",
-          ]),
-        ),
-      )
-      .orderBy(asc(orders.createdAt));
-
-    const response: ApiResponse<any[]> = {
-      success: true,
-      data: result || [],
-      error: null,
+    const { restaurant_id: restaurantId } = request.params as {
+      restaurant_id: string;
     };
-    return reply.send(response);
+
+    try {
+      const result = await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.restaurantId, restaurantId),
+            inArray(orders.status, [
+              "PENDING",
+              "CONFIRMED",
+              "PREPARING",
+              "READY_FOR_PICKUP",
+            ]),
+          ),
+        )
+        .orderBy(asc(orders.createdAt));
+
+      return reply.send({ success: true, data: result });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: { code: "INTERNAL_ERROR", message: "Failed to fetch orders" },
+      });
+    }
   });
 
   /**
    * GET /admin/restaurant/menu
-   * Query menu_items where restaurant_id = request.restaurantId, ordered by display_order ascending.
-   * Return all items including is_available.
    */
   fastify.get("/menu", async (request, reply) => {
-    const restaurantId = request.restaurantId as string;
-
-    const result = await db
-      .select()
-      .from(menuItems)
-      .where(eq(menuItems.restaurantId, restaurantId))
-      .orderBy(asc(menuItems.displayOrder));
-
-    const response: ApiResponse<any[]> = {
-      success: true,
-      data: result || [],
-      error: null,
+    const { restaurant_id: restaurantId } = request.params as {
+      restaurant_id: string;
     };
-    return reply.send(response);
+
+    try {
+      const result = await db
+        .select()
+        .from(menuItems)
+        .where(eq(menuItems.restaurantId, restaurantId))
+        .orderBy(asc(menuItems.displayOrder));
+
+      return reply.send({ success: true, data: result });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: { code: "INTERNAL_ERROR", message: "Failed to fetch menu" },
+      });
+    }
   });
 
   /**
    * POST /admin/restaurant/menu/items
-   * Body: { name, description, price, category, imageUrl?, isAvailable?, modifiers?, foodCostPercent? }.
-   * Get max display_order from existing items for this restaurant, add 1.
-   * Insert into menu_items. Return created item with status 201.
    */
-  fastify.post<{ Body: MenuBody }>("/menu/items", async (request, reply) => {
-    const restaurantId = request.restaurantId as string;
+  fastify.post("/menu/items", async (request, reply) => {
+    const { restaurant_id: restaurantId } = request.params as {
+      restaurant_id: string;
+    };
+    const user = request.user!;
+
+    const validation = MenuBodySchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed",
+          details: validation.error.issues.map((e) => ({
+            field: e.path.join("."),
+            issue: e.message,
+          })),
+        },
+      });
+    }
+
     const {
       name,
       description,
@@ -106,10 +159,9 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
       isAvailable,
       modifiers,
       foodCostPercent,
-    } = request.body;
+    } = validation.data;
 
     try {
-      // 1. Get max display_order
       const maxOrderResult = await db
         .select({ displayOrder: menuItems.displayOrder })
         .from(menuItems)
@@ -119,14 +171,13 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
 
       const nextOrder = (maxOrderResult[0]?.displayOrder || 0) + 1;
 
-      // 2. Insert into menu_items
       const result = await db
         .insert(menuItems)
         .values({
           restaurantId: restaurantId,
           name,
           description,
-          price: price.toString(),
+          price, // Now an integer in cents
           category,
           imageUrl,
           isAvailable: isAvailable ?? true,
@@ -136,154 +187,211 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         })
         .returning();
 
-      const data = result[0];
+      const newItem = result[0];
 
-      const response: ApiResponse<any> = {
-        success: true,
-        data,
-        error: null,
-      };
-      return reply.status(201).send(response);
+      await writeAuditLog({
+        adminId: user.id,
+        action: "CREATE_MENU_ITEM",
+        targetType: "menu_item",
+        targetId: newItem.id,
+        payload: { name: newItem.name },
+        ipAddress: request.ip,
+      });
+
+      return reply.status(201).send({ success: true, data: newItem });
     } catch (error: any) {
-      return reply.status(500).send({ success: false, error: error.message });
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to create menu item",
+        },
+      });
     }
   });
 
   /**
    * PUT /admin/restaurant/menu/items/:id
-   * Allow updating only: name, description, price, category, is_available, modifiers, image_url, display_order.
-   * Verify the item belongs to request.restaurantId before updating. Return updated item.
    */
-  fastify.put<{ Params: { id: string }; Body: UpdateMenuBody }>(
-    "/menu/items/:id",
-    async (request, reply) => {
-      const restaurantId = request.restaurantId as string;
-      const { id } = request.params;
-      const updates = request.body;
+  fastify.put("/menu/items/:id", async (request, reply) => {
+    const { restaurant_id: restaurantId } = request.params as {
+      restaurant_id: string;
+    };
+    const user = request.user!;
+    const { id } = request.params as { id: string };
 
-      try {
-        // 1. Check if item belongs to this restaurant
-        const existingResult = await db
-          .select({ restaurantId: menuItems.restaurantId })
-          .from(menuItems)
-          .where(eq(menuItems.id, id))
-          .limit(1);
+    const validation = UpdateMenuBodySchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed",
+          details: validation.error.issues.map((e) => ({
+            field: e.path.join("."),
+            issue: e.message,
+          })),
+        },
+      });
+    }
 
-        const existing = existingResult[0];
+    const updates = validation.data;
 
-        if (!existing) {
-          return reply
-            .status(404)
-            .send({ success: false, error: "Menu item not found" });
-        }
+    try {
+      const existingResult = await db
+        .select({ restaurantId: menuItems.restaurantId })
+        .from(menuItems)
+        .where(eq(menuItems.id, id))
+        .limit(1);
 
-        if (existing.restaurantId !== restaurantId) {
-          return reply.status(403).send({
-            success: false,
-            error: "Forbidden: Item does not belong to your restaurant",
-          });
-        }
+      const existing = existingResult[0];
 
-        // 2. Perform update
-        const allowedUpdates: Record<string, any> = {};
-        if (updates.name !== undefined) allowedUpdates.name = updates.name;
-        if (updates.description !== undefined)
-          allowedUpdates.description = updates.description;
-        if (updates.price !== undefined)
-          allowedUpdates.price = String(updates.price);
-        if (updates.category !== undefined)
-          allowedUpdates.category = updates.category;
-        if (updates.is_available !== undefined)
-          allowedUpdates.isAvailable = updates.is_available;
-        if (updates.modifiers !== undefined)
-          allowedUpdates.modifiers = updates.modifiers;
-        if (updates.image_url !== undefined)
-          allowedUpdates.imageUrl = updates.image_url;
-        if (updates.display_order !== undefined)
-          allowedUpdates.displayOrder = updates.display_order;
-        allowedUpdates.updatedAt = new Date();
-
-        const result = await db
-          .update(menuItems)
-          .set(allowedUpdates)
-          .where(eq(menuItems.id, id))
-          .returning();
-
-        const data = result[0];
-
-        const response: ApiResponse<any> = {
-          success: true,
-          data,
-          error: null,
-        };
-        return reply.send(response);
-      } catch (error: any) {
-        return reply.status(500).send({ success: false, error: error.message });
+      if (!existing) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: "NOT_FOUND", message: "Menu item not found" },
+        });
       }
-    },
-  );
+
+      if (existing.restaurantId !== restaurantId) {
+        request.log.warn(
+          { userId: user.uid, restaurantId, targetId: id },
+          "Security event: Forbidden menu item update attempt",
+        );
+        return reply.status(403).send({
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Item does not belong to your restaurant",
+          },
+        });
+      }
+
+      const allowedUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) allowedUpdates.name = updates.name;
+      if (updates.description !== undefined)
+        allowedUpdates.description = updates.description;
+      if (updates.price !== undefined) allowedUpdates.price = updates.price;
+      if (updates.category !== undefined)
+        allowedUpdates.category = updates.category;
+      if (updates.is_available !== undefined)
+        allowedUpdates.isAvailable = updates.is_available;
+      if (updates.modifiers !== undefined)
+        allowedUpdates.modifiers = updates.modifiers;
+      if (updates.image_url !== undefined)
+        allowedUpdates.imageUrl = updates.image_url;
+      if (updates.display_order !== undefined)
+        allowedUpdates.displayOrder = updates.display_order;
+      if (updates.food_cost_percent !== undefined)
+        allowedUpdates.foodCostPercent = String(updates.food_cost_percent);
+      allowedUpdates.updatedAt = new Date();
+
+      const result = await db
+        .update(menuItems)
+        .set(allowedUpdates)
+        .where(eq(menuItems.id, id))
+        .returning();
+
+      const updatedItem = result[0];
+
+      await writeAuditLog({
+        adminId: user.id,
+        action: "UPDATE_MENU_ITEM",
+        targetType: "menu_item",
+        targetId: id,
+        payload: updates,
+        ipAddress: request.ip,
+      });
+
+      return reply.send({ success: true, data: updatedItem });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to update menu item",
+        },
+      });
+    }
+  });
 
   /**
    * DELETE /admin/restaurant/menu/items/:id
-   * Soft delete — set is_available = false. Verify item belongs to request.restaurantId. Return { success: true }.
    */
-  fastify.delete<{ Params: { id: string } }>(
-    "/menu/items/:id",
-    async (request, reply) => {
-      const restaurantId = request.restaurantId as string;
-      const { id } = request.params;
+  fastify.delete("/menu/items/:id", async (request, reply) => {
+    const { restaurant_id: restaurantId } = request.params as {
+      restaurant_id: string;
+    };
+    const user = request.user!;
+    const { id } = request.params as { id: string };
 
-      try {
-        // 1. Check if item belongs to this restaurant
-        const existingResult = await db
-          .select({ restaurantId: menuItems.restaurantId })
-          .from(menuItems)
-          .where(eq(menuItems.id, id))
-          .limit(1);
+    try {
+      const existingResult = await db
+        .select({ restaurantId: menuItems.restaurantId })
+        .from(menuItems)
+        .where(eq(menuItems.id, id))
+        .limit(1);
 
-        const existing = existingResult[0];
+      const existing = existingResult[0];
 
-        if (!existing) {
-          return reply
-            .status(404)
-            .send({ success: false, error: "Menu item not found" });
-        }
-
-        if (existing.restaurantId !== restaurantId) {
-          return reply.status(403).send({
-            success: false,
-            error: "Forbidden: Item does not belong to your restaurant",
-          });
-        }
-
-        // 2. Perform soft delete
-        await db
-          .update(menuItems)
-          .set({ isAvailable: false })
-          .where(eq(menuItems.id, id));
-
-        const response: ApiResponse<{ success: boolean }> = {
-          success: true,
-          data: { success: true },
-          error: null,
-        };
-        return reply.send(response);
-      } catch (error: any) {
-        return reply.status(500).send({ success: false, error: error.message });
+      if (!existing) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: "NOT_FOUND", message: "Menu item not found" },
+        });
       }
-    },
-  );
+
+      if (existing.restaurantId !== restaurantId) {
+        request.log.warn(
+          { userId: user.uid, restaurantId, targetId: id },
+          "Security event: Forbidden menu item delete attempt",
+        );
+        return reply.status(403).send({
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Item does not belong to your restaurant",
+          },
+        });
+      }
+
+      await db
+        .update(menuItems)
+        .set({ isAvailable: false, updatedAt: new Date() })
+        .where(eq(menuItems.id, id));
+
+      await writeAuditLog({
+        adminId: user.id,
+        action: "DELETE_MENU_ITEM",
+        targetType: "menu_item",
+        targetId: id,
+        ipAddress: request.ip,
+      });
+
+      return reply.send({ success: true, data: { status: "soft-deleted" } });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to delete menu item",
+        },
+      });
+    }
+  });
 
   /**
    * GET /admin/restaurant/analytics
-   * Query param: period: 'daily' | 'weekly' | 'monthly' (default daily).
-   * Calculate date range: daily = today, weekly = last 7 days, monthly = last 30 days.
-   * Query analytics_snapshots where restaurant_id = request.restaurantId and date >= rangeStart. Order by date ascending. Return array.
    */
   fastify.get<{ Querystring: { period?: "daily" | "weekly" | "monthly" } }>(
     "/analytics",
     async (request, reply) => {
-      const restaurantId = request.restaurantId as string;
+      const { restaurant_id: restaurantId } = request.params as {
+        restaurant_id: string;
+      };
       const period = request.query.period || "daily";
 
       const now = new Date();
@@ -296,29 +404,34 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         rangeStart = new Date(now);
         rangeStart.setDate(now.getDate() - 30);
       } else {
-        // daily = today
         rangeStart = new Date(now);
       }
 
       const rangeStartStr = rangeStart.toISOString().split("T")[0];
 
-      const result = await db
-        .select()
-        .from(analyticsSnapshots)
-        .where(
-          and(
-            eq(analyticsSnapshots.restaurantId, restaurantId),
-            gte(analyticsSnapshots.date, rangeStartStr),
-          ),
-        )
-        .orderBy(asc(analyticsSnapshots.date));
+      try {
+        const result = await db
+          .select()
+          .from(analyticsSnapshots)
+          .where(
+            and(
+              eq(analyticsSnapshots.restaurantId, restaurantId),
+              gte(analyticsSnapshots.date, rangeStartStr),
+            ),
+          )
+          .orderBy(asc(analyticsSnapshots.date));
 
-      const response: ApiResponse<any[]> = {
-        success: true,
-        data: result || [],
-        error: null,
-      };
-      return reply.send(response);
+        return reply.send({ success: true, data: result || [] });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to fetch analytics",
+          },
+        });
+      }
     },
   );
 }

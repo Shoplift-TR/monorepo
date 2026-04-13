@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rawBody from "fastify-raw-body";
 import cookie from "@fastify/cookie";
+import { setupRBACMiddleware } from "./middleware/rbac.js";
 import { rateLimiterPlugin } from "./middleware/rateLimiter.js";
 import { supabase } from "./lib/supabase.js";
 import { registerRoutes } from "./routes/index.js";
@@ -39,6 +40,7 @@ await server.register(cors, {
 await server.register(helmet);
 
 await server.register(cookie);
+await setupRBACMiddleware(server);
 
 // Global Authentication Hook (Populates request.user if token is present)
 // This is required for the rate limiter to identify users on campus networks.
@@ -68,11 +70,13 @@ server.addHook("onRequest", async (request) => {
         if (profile) {
           request.user = {
             uid: data.user.id,
+            id: data.user.id,
             email: data.user.email ?? "",
             displayName: profile.displayName || "Customer",
             username: profile.username || null,
             role: profile.role,
             restaurantId: profile.restaurantId ?? null,
+            restaurant_id: profile.restaurantId ?? null,
           };
         }
       }

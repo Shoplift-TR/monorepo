@@ -162,11 +162,16 @@ export interface SupportTicket {
   resolvedAt: string | null;
 }
 
-// API response wrapper — all API responses use this shape
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: { field: string; issue: string }[];
+}
+
 export interface ApiResponse<T> {
   success: boolean;
-  data: T | null;
-  error: string | null;
+  data?: T;
+  error?: ApiError;
 }
 
 export interface AdminOverviewResponse {
@@ -235,4 +240,22 @@ export interface UpdateTicketStatusBody {
     | "ai_responded"
     | "resolved"
     | "escalated";
+}
+export interface CreateOrderRequest {
+  restaurantId: string;
+  items: {
+    itemId: string;
+    quantity: number;
+    selectedModifiers?: {
+      groupName: string;
+      optionName: string;
+    }[];
+    specialInstructions?: string;
+  }[];
+  promoCode?: string;
+  deliveryAddressId: string;
+  paymentMethod: "card" | "cash";
+  notes?: string;
+  idempotencyKey?: string;
+  locale?: "en" | "tr";
 }

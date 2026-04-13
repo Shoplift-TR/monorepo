@@ -10,14 +10,14 @@ import { ApiResponse } from "@shoplift/types";
  */
 
 const LIMITS = {
-  PUBLIC_BROWSE: { points: 200, duration: 60 }, // GET /restaurants, /menu
-  PUBLIC_DEFAULT: { points: 100, duration: 60 }, // all other unauthenticated
-  AUTH_LOGIN: { points: 10, duration: 900 }, // 10 per 15 min
-  AUTH_REGISTER: { points: 5, duration: 3600 }, // 5 per hour
-  AUTH_OTP: { points: 3, duration: 600 }, // 3 per 10 min
-  PRIVATE: { points: 200, duration: 3600 }, // authenticated endpoints per hour
-  SENSITIVE_IP: { points: 10, duration: 60 }, // /payments/* /admin/* by IP
-  SENSITIVE_USER: { points: 200, duration: 3600 }, // /admin/* by user per hour
+  PUBLIC_BROWSE: { points: 200, duration: 60 },
+  PUBLIC_DEFAULT: { points: 100, duration: 60 },
+  AUTH_LOGIN: { points: 5, duration: 15 * 60 }, // 5 per 15 min
+  AUTH_REGISTER: { points: 3, duration: 60 * 60 }, // 3 per hour
+  AUTH_OTP: { points: 10, duration: 30 * 60 }, // 10 per 30 min
+  PRIVATE: { points: 500, duration: 3600 },
+  SENSITIVE_IP: { points: 20, duration: 60 },
+  SENSITIVE_USER: { points: 500, duration: 3600 },
 };
 
 const publicBrowseLimiter = new RateLimiterMemory(LIMITS.PUBLIC_BROWSE);
@@ -41,13 +41,24 @@ export const rateLimiterPlugin = async (fastify: FastifyInstance) => {
       try {
         // 1. Auth specialized routes
         if (path.startsWith("/auth/register") && method === "POST") {
-          return await registerLimiter.consume(ip);
+          await registerLimiter.consume(ip);
+          return;
         }
         if (path.startsWith("/auth/login") && method === "POST") {
-          return await loginLimiter.consume(ip);
+          const email = (request.body as any)?.email;
+          const key = email ? `${ip}::${email}` : ip;
+          await loginLimiter.consume(key);
+          return;
         }
         if (path.startsWith("/auth/otp") && method === "POST") {
-          return await otpLimiter.consume(ip);
+          const email = (request.body as any)?.email;
+          if (email) {
+            await otpLimiter.consume(email);
+          } else {
+            // fallback to IP if email not provided (unlikely given schema)
+            await otpLimiter.consume(ip);
+          }
+          return;
         }
 
         // 2. Sensitive routes (/payments/*, /admin/*)
@@ -78,18 +89,18 @@ export const rateLimiterPlugin = async (fastify: FastifyInstance) => {
         const errorResponse: ApiResponse<null> = {
           success: false,
           data: null,
-          error: "Too many requests. Please try again later.",
+          error: {
+            code: "RATE_LIMIT_EXCEEDED",
+            message: "Too many requests. Please try again later.",
+          },
         };
 
-        reply
-          .status(429)
-          .header(
-            "Retry-After",
-            Math.round(
-              ((rejRes as Record<string, any>).msBeforeNext as number) / 1000,
-            ) || 60,
-          )
-          .send(errorResponse);
+        const retryAfter =
+          Math.round(
+            ((rejRes as Record<string, any>).msBeforeNext as number) / 1000,
+          ) || 60;
+
+        reply.status(429).header("Retry-After", retryAfter).send(errorResponse);
       }
     },
   );

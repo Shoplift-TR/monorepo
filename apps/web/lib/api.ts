@@ -77,7 +77,17 @@ async function fetcher<T>(
     const result: ApiResponse<T> = await response.json();
 
     if (!response.ok || !result.success) {
-      return { data: null, error: result.error || "An error occurred" };
+      let errorMessage = "An error occurred";
+      if (typeof result.error === "string") {
+        errorMessage = result.error;
+      } else if (
+        result.error &&
+        typeof result.error === "object" &&
+        "message" in result.error
+      ) {
+        errorMessage = (result.error as any).message;
+      }
+      return { data: null, error: errorMessage };
     }
 
     return { data: result.data, error: null };

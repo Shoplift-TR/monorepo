@@ -27,12 +27,13 @@ export const verifyAuth = async (
   }
 
   if (!token) {
-    const errorResponse: ApiResponse<null> = {
+    return reply.status(401).send({
       success: false,
-      data: null,
-      error: "Unauthorized: Missing authentication token",
-    };
-    return reply.status(401).send(errorResponse);
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Missing authentication token",
+      },
+    });
   }
 
   // Verify JWT and get Supabase auth user
@@ -40,12 +41,17 @@ export const verifyAuth = async (
     await supabase.auth.getUser(token);
 
   if (authError || !authData.user) {
-    const errorResponse: ApiResponse<null> = {
+    request.log.warn(
+      { authError, path: request.url },
+      "Unauthorized access attempt: Invalid token",
+    );
+    return reply.status(401).send({
       success: false,
-      data: null,
-      error: "Unauthorized: Invalid or expired token",
-    };
-    return reply.status(401).send(errorResponse);
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Invalid or expired token",
+      },
+    });
   }
 
   // Fetch profile from Postgres for role + restaurantId
@@ -58,21 +64,42 @@ export const verifyAuth = async (
   const profile = profileResult[0];
 
   if (!profile) {
-    const errorResponse: ApiResponse<null> = {
+    request.log.error(
+      { userId: authData.user.id },
+      "Security event: Authenticated user has no profile",
+    );
+    return reply.status(401).send({
       success: false,
-      data: null,
-      error: "Unauthorized: User profile not found",
-    };
-    return reply.status(401).send(errorResponse);
+      error: {
+        code: "UNAUTHORIZED",
+        message: "User profile not found",
+      },
+    });
+  }
+
+  if (profile.isActive === false) {
+    request.log.warn(
+      { userId: authData.user.id },
+      "Forbidden access attempt: Account is disabled",
+    );
+    return reply.status(403).send({
+      success: false,
+      error: {
+        code: "ACCOUNT_DISABLED",
+        message: "This account has been disabled",
+      },
+    });
   }
 
   request.user = {
     uid: authData.user.id,
+    id: authData.user.id,
     email: authData.user.email ?? "",
     displayName: profile.displayName || "Customer",
     username: profile.username || null,
     role: profile.role,
     restaurantId: profile.restaurantId ?? null,
+    restaurant_id: profile.restaurantId ?? null,
   };
 };
 
@@ -89,12 +116,22 @@ export const requireRole =
   (...roles: string[]) =>
   async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.user || !roles.includes(request.user.role)) {
-      const errorResponse: ApiResponse<null> = {
+      request.log.warn(
+        {
+          userId: request.user?.uid,
+          role: request.user?.role,
+          requiredRoles: roles,
+          path: request.url,
+        },
+        "Forbidden access attempt: Insufficient permissions",
+      );
+      return reply.status(403).send({
         success: false,
-        data: null,
-        error: `Forbidden: requires one of [${roles.join(", ")}]`,
-      };
-      return reply.status(403).send(errorResponse);
+        error: {
+          code: "ROLE_VIOLATION",
+          message: `Only users with roles [${roles.join(", ")}] can access this resource`,
+        },
+      });
     }
   };
 
@@ -111,25 +148,40 @@ export const requireRestaurantAdmin = async (
   request: FastifyRequest,
   reply: FastifyReply,
 ) => {
-  if (!request.user || request.user.role !== "restaurant_admin") {
-    const errorResponse: ApiResponse<null> = {
+  if (
+    !request.user ||
+    (request.user.role !== "restaurant_admin" &&
+      request.user.role !== "super_admin")
+  ) {
+    request.log.warn(
+      { userId: request.user?.uid, path: request.url },
+      "Forbidden access attempt: Not a restaurant admin",
+    );
+    return reply.status(403).send({
       success: false,
-      data: null,
-      error: "Forbidden: restaurant admin access required",
-    };
-    return reply.status(403).send(errorResponse);
+      error: {
+        code: "ROLE_VIOLATION",
+        message: "Restaurant admin access required",
+      },
+    });
   }
 
-  if (!request.user.restaurantId) {
-    const errorResponse: ApiResponse<null> = {
+  // Super admins bypass ownership check in some contexts, but middleware should pass if authorized
+  if (request.user.role === "restaurant_admin" && !request.user.restaurantId) {
+    request.log.error(
+      { userId: request.user?.uid },
+      "Security event: Restaurant admin has no restaurantId",
+    );
+    return reply.status(403).send({
       success: false,
-      data: null,
-      error: "Forbidden: no restaurant associated with this account",
-    };
-    return reply.status(403).send(errorResponse);
+      error: {
+        code: "OWNERSHIP_VIOLATION",
+        message: "No restaurant associated with this account",
+      },
+    });
   }
 
-  request.restaurantId = request.user.restaurantId;
+  request.restaurantId = request.user.restaurantId ?? undefined;
 };
 
 /**
@@ -145,11 +197,37 @@ export const requireSuperAdmin = async (
   reply: FastifyReply,
 ) => {
   if (!request.user || request.user.role !== "super_admin") {
-    const errorResponse: ApiResponse<null> = {
+    request.log.warn(
+      { userId: request.user?.uid, path: request.url },
+      "Forbidden access attempt: Not a super admin",
+    );
+    return reply.status(403).send({
       success: false,
-      data: null,
-      error: "Forbidden: super admin access required",
-    };
-    return reply.status(403).send(errorResponse);
+      error: {
+        code: "ROLE_VIOLATION",
+        message: "Super admin access required",
+      },
+    });
+  }
+};
+
+/**
+ * checkRestaurantOwnership
+ *
+ * Verifies that the authenticated user (restaurant_admin) owns the
+ * requested restaurant. Super admins bypass this check.
+ */
+export const checkRestaurantOwnership = (
+  request: FastifyRequest,
+  targetRestaurantId: string,
+) => {
+  if (request.user?.role === "super_admin") return;
+
+  if (request.user?.role !== "restaurant_admin") {
+    throw new Error("ROLE_VIOLATION"); // Handled by standard error handler or manual catch
+  }
+
+  if (request.user.restaurantId !== targetRestaurantId) {
+    throw new Error("OWNERSHIP_VIOLATION");
   }
 };

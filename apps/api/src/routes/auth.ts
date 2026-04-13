@@ -1,289 +1,369 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { supabase } from "../lib/supabase.js";
 import { verifyAuth } from "../middleware/auth.js";
-import { db, profiles } from "@shoplift/db";
+import { db, profiles, auditLogs } from "@shoplift/db";
 import { eq, and, ne, ilike } from "drizzle-orm";
+import { ApiResponse } from "@shoplift/types";
 
-interface RegisterBody {
-  email: string;
-  password: string;
-  displayName: string;
-  username?: string;
-  phone: string;
-  preferredLanguage: "tr" | "en";
-}
+// Zod Schemas for Validation
+const RegisterSchema = z
+  .object({
+    email: z.string().email().max(255).trim(),
+    password: z.string().min(8).max(128),
+    name: z.string().min(2).max(100).trim(),
+    phone: z.string().optional(),
+  })
+  .strict();
 
-interface LoginBody {
-  email: string;
-  password: string;
-}
+const LoginSchema = z
+  .object({
+    email: z.string().email().max(255).trim(),
+    password: z.string().min(8).max(128),
+  })
+  .strict();
 
-interface OtpSendBody {
-  phone: string;
-}
+const OtpSendSchema = z
+  .object({
+    phone: z.string(),
+  })
+  .strict();
 
-interface OtpVerifyBody {
-  phone: string;
-  otp: string;
-}
+const OtpVerifySchema = z
+  .object({
+    phone: z.string(),
+    otp: z.string(),
+  })
+  .strict();
 
-interface RefreshBody {
-  refreshToken: string;
-}
+const RefreshSchema = z
+  .object({
+    refreshToken: z.string(),
+  })
+  .strict();
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // POST /auth/register
-  fastify.post<{ Body: RegisterBody }>(
-    "/register",
-    {
-      schema: {
-        body: {
-          type: "object",
-          required: [
-            "email",
-            "password",
-            "displayName",
-            "phone",
-            "preferredLanguage",
-          ],
-          properties: {
-            email: { type: "string", format: "email" },
-            password: { type: "string", minLength: 6 },
-            displayName: { type: "string", minLength: 2 },
-            phone: { type: "string" },
-            preferredLanguage: { type: "string", enum: ["tr", "en"] },
-          },
+  fastify.post("/register", async (request, reply) => {
+    const validation = RegisterSchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed",
+          details: validation.error.issues.map((e: z.ZodIssue) => ({
+            field: e.path.join("."),
+            issue: e.message,
+          })),
         },
-      },
-    },
-    async (request, reply) => {
-      const { email, password, displayName, phone, preferredLanguage } =
-        request.body;
+      });
+    }
 
-      try {
-        const { data: authData, error: authError } =
-          await supabase.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: {
-              display_name: displayName,
-              preferred_language: preferredLanguage,
-              phone,
-            },
-          });
+    const { email, password, name, phone } = validation.data;
 
-        if (authError || !authData.user) {
-          request.log.error({ authError }, "Supabase register error");
-          return reply.status(400).send({
-            error: authError?.message || "Failed to register",
-            code: authError?.code,
-            status: authError?.status,
-          });
-        }
-
-        const user = authData.user;
-
-        // Profile row is created automatically via the trigger.
-        // Update the phone specifically as requested.
-        try {
-          await db
-            .update(profiles)
-            .set({ phone })
-            .where(eq(profiles.id, user.id));
-        } catch (profileError) {
-          request.log.warn({ profileError }, "Profile phone update failed");
-        }
-
-        return reply.status(201).send({
-          uid: user.id,
-          email,
-          displayName,
-        });
-      } catch (error: any) {
-        request.log.error(error);
-        return reply
-          .status(400)
-          .send({ error: error.message || "Failed to register" });
-      }
-    },
-  );
-
-  // POST /auth/login
-  fastify.post<{ Body: LoginBody }>(
-    "/login",
-    {
-      schema: {
-        body: {
-          type: "object",
-          required: ["email", "password"],
-          properties: {
-            email: { type: "string", format: "email" },
-            password: { type: "string", minLength: 1 },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { email, password } = request.body;
-
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
+    try {
+      const { data: authData, error: authError } =
+        await supabase.auth.admin.createUser({
           email,
           password,
+          email_confirm: true,
+          user_metadata: {
+            display_name: name,
+            phone,
+          },
         });
 
-        if (error || !data.user || !data.session) {
-          return reply
-            .status(401)
-            .send({ error: error?.message || "Invalid credentials" });
+      if (authError || !authData.user) {
+        if (authError?.message?.includes("already exists")) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: "EMAIL_ALREADY_EXISTS",
+              message: "An account with this email already exists",
+            },
+          });
+        }
+        request.log.error(
+          { authError, email },
+          "Registration failed security event",
+        );
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "REGISTRATION_FAILED",
+            message: "Failed to create account. Please try again.",
+          },
+        });
+      }
+
+      const user = authData.user;
+
+      // Ensure profile exists (it should be created by trigger, but we'll update it)
+      await db
+        .update(profiles)
+        .set({ phone, displayName: name })
+        .where(eq(profiles.id, user.id));
+
+      return reply.status(201).send({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            email: email,
+            name: name,
+            role: "user",
+            created_at: user.created_at,
+          },
+        },
+      });
+    } catch (error: any) {
+      request.log.error({ error, email }, "Critical registration error");
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
+        },
+      });
+    }
+  });
+
+  // POST /auth/login
+  fastify.post("/login", async (request, reply) => {
+    const validation = LoginSchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed",
+          details: validation.error.issues.map((e: z.ZodIssue) => ({
+            field: e.path.join("."),
+            issue: e.message,
+          })),
+        },
+      });
+    }
+
+    const { email, password } = validation.data;
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error || !data.user || !data.session) {
+        request.log.warn(
+          { email, error: error?.message },
+          "Failed login attempt security event",
+        );
+
+        // Log failed login to audit_logs
+        try {
+          await db.insert(auditLogs).values({
+            adminId: undefined, // omit field so DB stores NULL for unauthenticated failures
+            action: "LOGIN_FAILURE",
+            payload: { email, reason: error?.message || "Invalid credentials" },
+            ipAddress: request.ip,
+          });
+        } catch (e) {
+          request.log.error(e, "Failed to persist audit log");
         }
 
-        reply.setCookie("token", data.session.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 3600,
+        return reply.status(401).send({
+          success: false,
+          error: {
+            code: "INVALID_CREDENTIALS",
+            message: "Invalid email or password",
+          },
         });
-
-        return reply.send({
-          uid: data.user.id,
-        });
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.status(500).send({ error: "Login failed" });
       }
-    },
-  );
+
+      // Fetch profile to check is_active
+      const profileResult = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, data.user.id))
+        .limit(1);
+
+      const profile = profileResult[0];
+
+      if (profile && profile.isActive === false) {
+        request.log.warn(
+          { email, userId: data.user.id },
+          "Login attempt for disabled account",
+        );
+        await supabase.auth.signOut(); // Ensure session is destroyed if possible
+        return reply.status(403).send({
+          success: false,
+          error: {
+            code: "ACCOUNT_DISABLED",
+            message: "This account has been disabled",
+          },
+        });
+      }
+
+      request.log.info(
+        { email, userId: data.user.id },
+        "Successful login security event",
+      );
+
+      reply.setCookie("token", data.session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 3600 * 24, // 24 hours
+      });
+
+      return reply.send({
+        success: true,
+        data: {
+          access_token: data.session.access_token,
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            role: profile?.role || "user",
+            restaurant_id: profile?.restaurantId || null,
+          },
+        },
+      });
+    } catch (error: any) {
+      request.log.error(
+        { error, email },
+        "Critical login error security event",
+      );
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: "INVALID_CREDENTIALS",
+          message: "Invalid email or password",
+        },
+      });
+    }
+  });
 
   // POST /auth/otp/send
-  fastify.post<{ Body: OtpSendBody }>(
-    "/otp/send",
-    {
-      schema: {
-        body: {
-          type: "object",
-          required: ["phone"],
-          properties: {
-            phone: { type: "string" },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { phone } = request.body;
-      request.log.info({ phone }, "OTP sent to phone");
-      return reply.send({ success: true, message: "OTP sent (stubbed)" });
-    },
-  );
+  fastify.post("/otp/send", async (request, reply) => {
+    const validation = OtpSendSchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid phone number" },
+      });
+    }
+
+    const { phone } = validation.data;
+    request.log.info({ phone }, "OTP sent security event (stubbed)");
+    return reply.send({ success: true, message: "OTP sent (stubbed)" });
+  });
 
   // POST /auth/otp/verify
-  fastify.post<{ Body: OtpVerifyBody }>(
-    "/otp/verify",
-    {
-      schema: {
-        body: {
-          type: "object",
-          required: ["phone", "otp"],
-          properties: {
-            phone: { type: "string" },
-            otp: { type: "string" },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { phone, otp } = request.body;
-      request.log.info({ phone, otp }, "OTP verified");
-      return reply.send({ success: true, message: "OTP verified (stubbed)" });
-    },
-  );
+  fastify.post("/otp/verify", async (request, reply) => {
+    const validation = OtpVerifySchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid OTP payload" },
+      });
+    }
+
+    const { phone, otp } = validation.data;
+    request.log.info({ phone, otp }, "OTP verified security event");
+    return reply.send({ success: true, message: "OTP verified (stubbed)" });
+  });
 
   // POST /auth/refresh
-  fastify.post<{ Body: RefreshBody }>(
-    "/refresh",
-    {
-      schema: {
-        body: {
-          type: "object",
-          required: ["refreshToken"],
-          properties: {
-            refreshToken: { type: "string" },
+  fastify.post("/refresh", async (request, reply) => {
+    const validation = RefreshSchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid refresh token" },
+      });
+    }
+
+    const { refreshToken } = validation.data;
+
+    try {
+      const { data, error } = await supabase.auth.refreshSession({
+        refresh_token: refreshToken,
+      });
+
+      if (error || !data.session) {
+        return reply.status(401).send({
+          success: false,
+          error: {
+            code: "REFRESH_FAILED",
+            message: "Invalid refresh token",
           },
-        },
-      },
-    },
-    async (request, reply) => {
-      const { refreshToken } = request.body;
-
-      try {
-        const { data, error } = await supabase.auth.refreshSession({
-          refresh_token: refreshToken,
         });
-
-        if (error || !data.session) {
-          return reply
-            .status(401)
-            .send({ error: error?.message || "Invalid refresh token" });
-        }
-
-        reply.setCookie("token", data.session.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 3600,
-        });
-
-        return reply.send({
-          success: true,
-        });
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.status(500).send({ error: "Refresh failed" });
       }
-    },
-  );
 
-  // DELETE /auth/logout
-  // DELETE /auth/logout
-  fastify.delete(
+      reply.setCookie("token", data.session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 3600,
+      });
+
+      return reply.send({
+        success: true,
+      });
+    } catch (error: any) {
+      request.log.error(error, "Refresh session failure");
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: "REFRESH_FAILED",
+          message: "Invalid refresh token",
+        },
+      });
+    }
+  });
+
+  // POST /auth/logout
+  fastify.post(
     "/logout",
-    // REMOVE: preHandler: [verifyAuth],  // ← Remove auth requirement
+    { preHandler: [verifyAuth] },
     async (request, reply) => {
       try {
-        // Get token if it exists (optional for logout)
         const authHeader = request.headers.authorization;
         const cookieToken = request.cookies.token;
         const token = authHeader?.split("Bearer ")[1] || cookieToken;
 
-        // If we have a valid token, try to sign out that specific user
         if (token) {
           try {
-            const { data: authData } = await supabase.auth.getUser(token);
-            if (authData.user) {
-              await supabase.auth.admin.signOut(authData.user.id);
-            }
+            await supabase.auth.admin.signOut(request.user!.uid);
+            request.log.info(
+              { userId: request.user!.uid },
+              "User logged out security event",
+            );
           } catch (_error) {
-            // Ignore auth errors during logout - user wants to logout anyway
+            // Ignore error
           }
         }
 
-        // Always clear the cookie
-        reply.clearCookie("token", { path: "/" });
+        reply.clearCookie("token", {
+          path: "/",
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+        });
 
         return reply.send({
           success: true,
-          message: "Logged out successfully",
+          data: {},
         });
       } catch (error: any) {
-        request.log.error(error);
-        // Even if server logout fails, still clear cookie and return success
+        request.log.error(error, "Logout processing error");
         reply.clearCookie("token", { path: "/" });
         return reply.send({
           success: true,
-          message: "Logged out successfully (local logout)",
+          data: {},
         });
       }
     },
@@ -294,30 +374,44 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send({
       success: true,
       data: request.user,
-      error: null,
     });
   });
 
   // PUT /auth/profile/username
-  fastify.put<{ Body: { username: string } }>(
+  fastify.put(
     "/profile/username",
-    { preHandler: [verifyAuth] },
+    {
+      preHandler: [verifyAuth],
+      schema: {
+        body: {
+          type: "object",
+          required: ["username"],
+          properties: {
+            username: { type: "string", minLength: 3, maxLength: 30 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
     async (request, reply) => {
-      const { username } = request.body;
+      const { username } = request.body as { username: string };
       const user = request.user!;
 
-      // Sanitize
       const sanitized = username
         .toLowerCase()
         .replace(/[^a-z0-9_]/g, "")
         .slice(0, 30);
 
       if (sanitized.length < 3) {
-        return reply.status(400).send({
+        const errorResponse: ApiResponse<null> = {
           success: false,
           data: null,
-          error: "Username must be at least 3 characters",
-        });
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Username must be at least 3 characters",
+          },
+        };
+        return reply.status(400).send(errorResponse);
       }
 
       try {
@@ -325,107 +419,99 @@ export default async function authRoutes(fastify: FastifyInstance) {
           .select({ id: profiles.id })
           .from(profiles)
           .where(
-            and(ilike(profiles.username, sanitized), ne(profiles.id, user.uid)),
+            and(ilike(profiles.username, sanitized), ne(profiles.id, user.id)),
           )
           .limit(1);
 
         if (existingResult.length > 0) {
           return reply.status(409).send({
             success: false,
-            data: null,
-            error: "Username already taken",
+            error: { code: "CONFLICT", message: "Username already taken" },
           });
         }
 
         const updatedResult = await db
           .update(profiles)
           .set({ username: sanitized })
-          .where(eq(profiles.id, user.uid))
+          .where(eq(profiles.id, user.id))
           .returning();
 
-        const data = updatedResult[0];
-
-        return reply.send({ success: true, data, error: null });
+        return reply.send({ success: true, data: updatedResult[0] });
       } catch (error: any) {
-        request.log.error(error);
+        request.log.error(error, "Username update error");
         return reply.status(500).send({
           success: false,
-          data: null,
-          error: error.message || "Failed to update username",
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to update username",
+          },
         });
       }
     },
   );
 
   // POST /auth/oauth-callback
-  // Called after OAuth flow to set the httpOnly cookie from a Supabase token
-  fastify.post<{ Body: { access_token: string } }>(
-    "/oauth-callback",
-    async (request, reply) => {
-      const { access_token } = request.body;
+  fastify.post("/oauth-callback", async (request, reply) => {
+    const { access_token } = request.body as { access_token: string };
 
-      if (!access_token) {
-        return reply.status(400).send({
-          success: false,
-          error: "Missing access_token",
+    if (!access_token) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: "MISSING_TOKEN", message: "Missing access token" },
+      });
+    }
+
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(access_token);
+
+    if (error || !user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: "INVALID_TOKEN", message: "Invalid token" },
+      });
+    }
+
+    try {
+      const profileResult = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1);
+
+      if (!profileResult[0]) {
+        await db.insert(profiles).values({
+          id: user.id,
+          email: user.email || "",
+          displayName:
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            user.email?.split("@")[0] ||
+            "User",
+          role: "customer",
+          preferredLanguage: "en",
         });
       }
 
-      // Verify the token is valid with Supabase
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser(access_token);
+      reply.setCookie("token", access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 3600,
+      });
 
-      if (error || !user) {
-        return reply.status(401).send({
-          success: false,
-          error: "Invalid token",
-        });
-      }
-
-      try {
-        // Ensure profile exists (OAuth users may not have gone through /register)
-        const profileResult = await db
-          .select({ id: profiles.id })
-          .from(profiles)
-          .where(eq(profiles.id, user.id))
-          .limit(1);
-
-        const profile = profileResult[0];
-
-        if (!profile) {
-          // Create profile for OAuth user if trigger didn't fire
-          await db.insert(profiles).values({
-            id: user.id,
-            email: user.email || "",
-            displayName:
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              user.email?.split("@")[0] ||
-              "User",
-            role: "customer",
-            preferredLanguage: "en",
-          });
-        }
-
-        // Set the httpOnly cookie exactly like /auth/login does
-        reply.setCookie("token", access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 3600,
-        });
-
-        return reply.send({ success: true });
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.status(500).send({
-          success: false,
-          error: error.message || "Failed to process OAuth callback",
-        });
-      }
-    },
-  );
+      return reply.send({ success: true });
+    } catch (error: any) {
+      request.log.error(error, "OAuth callback error");
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to process OAuth callback",
+        },
+      });
+    }
+  });
 }

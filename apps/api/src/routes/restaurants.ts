@@ -67,7 +67,10 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply.status(500).send({
           success: false,
-          error: error.message || "Failed to fetch restaurants",
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to fetch restaurants",
+          },
         });
       }
     },
@@ -87,9 +90,13 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
         .limit(1);
 
       if (!result[0]) {
-        return reply
-          .status(404)
-          .send({ success: false, error: "Restaurant not found" });
+        return reply.status(404).send({
+          success: false,
+          error: {
+            code: "NOT_FOUND",
+            message: "Restaurant not found",
+          },
+        });
       }
 
       return reply.send({ success: true, data: result[0] });
@@ -97,7 +104,10 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
       request.log.error(error);
       return reply.status(500).send({
         success: false,
-        error: error.message || "Failed to fetch restaurant",
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to fetch restaurant",
+        },
       });
     }
   });
@@ -130,7 +140,10 @@ export default async function restaurantRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply.status(500).send({
           success: false,
-          error: error.message || "Failed to fetch menu items",
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to fetch menu items",
+          },
         });
       }
     },

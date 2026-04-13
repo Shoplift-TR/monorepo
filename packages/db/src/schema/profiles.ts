@@ -25,6 +25,7 @@ export const profiles = pgTable("profiles", {
   preferredLanguage: text("preferred_language").default("en"),
   usedPromoIds: text("used_promo_ids").array(),
   telegramChatId: text("telegram_chat_id"),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

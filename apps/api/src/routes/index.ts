@@ -19,7 +19,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(paymentRoutes, { prefix: "/payments" });
   await fastify.register(adminRoutes, { prefix: "/admin" });
   await fastify.register(restaurantAdminRoutes, {
-    prefix: "/admin/restaurant",
+    prefix: "/admin/restaurant/:restaurant_id",
   });
   await fastify.register(supportRoutes, { prefix: "/support" });
   await fastify.register(trackingRoutes, { prefix: "/tracking" });

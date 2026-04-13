@@ -17,7 +17,7 @@ export const menuItems = pgTable("menu_items", {
     .references(() => restaurants.id),
   name: jsonb("name").notNull(),
   description: jsonb("description"),
-  price: numeric("price").notNull(),
+  price: integer("price").notNull(),
   category: text("category"),
   imageUrl: text("image_url"),
   isAvailable: boolean("is_available").default(true),

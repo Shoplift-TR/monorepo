@@ -1,10 +1,37 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { verifyAuth } from "../../middleware/auth.js";
-import { createOwnershipMiddleware } from "../../middleware/ownership.js";
+import { supabase } from "../../lib/supabase.js";
 import { db, orders, menuItems, analyticsSnapshots } from "@shoplift/db";
 import { eq, and, asc, desc, inArray, gte } from "drizzle-orm";
 import { writeAuditLog } from "../../lib/audit.js";
+import crypto from "crypto";
+
+const ImageValueSchema = z
+  .string()
+  .trim()
+  .optional()
+  .or(z.literal(""))
+  .refine(
+    (value) => {
+      if (!value) return true;
+      if (value.startsWith("blob:") || value.startsWith("data:")) {
+        return false;
+      }
+
+      try {
+        const parsed = new URL(value);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          return true;
+        }
+      } catch {
+        // Not an absolute URL; allow safe storage-relative paths
+      }
+
+      return /^[a-zA-Z0-9/_\-.]+$/.test(value);
+    },
+    { message: "Invalid input" },
+  );
 
 // Zod Schemas
 const MenuBodySchema = z
@@ -24,10 +51,13 @@ const MenuBodySchema = z
       .optional(),
     price: z.number().int().nonnegative(), // INTEGER (cents)
     category: z.string().trim().min(1),
-    imageUrl: z.string().url().trim().optional().or(z.literal("")),
+    imageUrl: ImageValueSchema,
+    image_url: ImageValueSchema,
     isAvailable: z.boolean().optional(),
+    is_available: z.boolean().optional(),
     modifiers: z.array(z.any()).optional(), // TODO: stricter modifier schema later
     foodCostPercent: z.number().min(0).max(100).optional(),
+    food_cost_percent: z.number().min(0).max(100).optional(),
   })
   .strict();
 
@@ -49,11 +79,21 @@ const UpdateMenuBodySchema = z
       .optional(),
     price: z.number().int().nonnegative().optional(),
     category: z.string().trim().min(1).optional(),
+    isAvailable: z.boolean().optional(),
     is_available: z.boolean().optional(),
     modifiers: z.array(z.any()).optional(),
-    image_url: z.string().url().trim().optional().or(z.literal("")),
+    imageUrl: ImageValueSchema,
+    image_url: ImageValueSchema,
+    displayOrder: z.number().int().optional(),
     display_order: z.number().int().optional(),
+    foodCostPercent: z.number().min(0).max(100).optional(),
     food_cost_percent: z.number().min(0).max(100).optional(),
+  })
+  .strict();
+
+const UploadMenuImageSchema = z
+  .object({
+    imageDataUrl: z.string().min(1),
   })
   .strict();
 
@@ -61,18 +101,23 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   // All routes in this plugin require restaurant admin access and ownership verification
   fastify.addHook("preHandler", async (request, reply) => {
     await verifyAuth(request, reply);
-    if (!reply.sent) {
-      await createOwnershipMiddleware("restaurant_id")(request, reply);
-    }
   });
 
   /**
    * GET /admin/restaurant/orders
    */
   fastify.get("/orders", async (request, reply) => {
-    const { restaurant_id: restaurantId } = request.params as {
-      restaurant_id: string;
-    };
+    const restaurantId = request.user!.restaurantId;
+
+    if (!restaurantId) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "BAD_REQUEST",
+          message: "User not associated with a restaurant",
+        },
+      });
+    }
 
     try {
       const result = await db
@@ -105,9 +150,17 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * GET /admin/restaurant/menu
    */
   fastify.get("/menu", async (request, reply) => {
-    const { restaurant_id: restaurantId } = request.params as {
-      restaurant_id: string;
-    };
+    const restaurantId = request.user!.restaurantId;
+
+    if (!restaurantId) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "BAD_REQUEST",
+          message: "User not associated with a restaurant",
+        },
+      });
+    }
 
     try {
       const result = await db
@@ -130,10 +183,18 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * POST /admin/restaurant/menu/items
    */
   fastify.post("/menu/items", async (request, reply) => {
-    const { restaurant_id: restaurantId } = request.params as {
-      restaurant_id: string;
-    };
+    const restaurantId = request.user!.restaurantId;
     const user = request.user!;
+
+    if (!restaurantId) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "BAD_REQUEST",
+          message: "User not associated with a restaurant",
+        },
+      });
+    }
 
     const validation = MenuBodySchema.safeParse(request.body);
     if (!validation.success) {
@@ -156,9 +217,12 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
       price,
       category,
       imageUrl,
+      image_url,
       isAvailable,
+      is_available,
       modifiers,
       foodCostPercent,
+      food_cost_percent,
     } = validation.data;
 
     try {
@@ -179,10 +243,10 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
           description,
           price, // Now an integer in cents
           category,
-          imageUrl,
-          isAvailable: isAvailable ?? true,
+          imageUrl: imageUrl ?? image_url,
+          isAvailable: isAvailable ?? is_available ?? true,
           modifiers: modifiers ?? [],
-          foodCostPercent: foodCostPercent?.toString(),
+          foodCostPercent: (foodCostPercent ?? food_cost_percent)?.toString(),
           displayOrder: nextOrder,
         })
         .returning();
@@ -212,14 +276,104 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /admin/restaurant/menu/upload-image
+   */
+  fastify.post("/menu/upload-image", async (request, reply) => {
+    const user = request.user!;
+
+    if (
+      !user.role ||
+      !["restaurant_admin", "super_admin"].includes(user.role)
+    ) {
+      return reply.status(403).send({
+        success: false,
+        error: { code: "FORBIDDEN", message: "Not authorized" },
+      });
+    }
+
+    const validation = UploadMenuImageSchema.safeParse(request.body);
+    if (!validation.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed",
+          details: validation.error.issues.map((e) => ({
+            field: e.path.join("."),
+            issue: e.message,
+          })),
+        },
+      });
+    }
+
+    const { imageDataUrl } = validation.data;
+    const match = imageDataUrl.match(
+      /^data:(image\/(png|jpeg|webp));base64,(.+)$/i,
+    );
+
+    if (!match) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid image payload",
+        },
+      });
+    }
+
+    const mimeType = match[1].toLowerCase();
+    const base64 = match[3];
+    const imageBuffer = Buffer.from(base64, "base64");
+    const extension =
+      mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+    const fileName = `menu_${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("menu-images")
+      .upload(fileName, imageBuffer, {
+        contentType: mimeType,
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      request.log.error(uploadError);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to upload image",
+        },
+      });
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("menu-images").getPublicUrl(fileName);
+
+    return reply.send({
+      success: true,
+      data: { url: publicUrl, path: fileName },
+    });
+  });
+
+  /**
    * PUT /admin/restaurant/menu/items/:id
    */
   fastify.put("/menu/items/:id", async (request, reply) => {
-    const { restaurant_id: restaurantId } = request.params as {
-      restaurant_id: string;
-    };
+    const restaurantId = request.user!.restaurantId;
     const user = request.user!;
     const { id } = request.params as { id: string };
+
+    if (!restaurantId) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "BAD_REQUEST",
+          message: "User not associated with a restaurant",
+        },
+      });
+    }
 
     const validation = UpdateMenuBodySchema.safeParse(request.body);
     if (!validation.success) {
@@ -240,7 +394,10 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
 
     try {
       const existingResult = await db
-        .select({ restaurantId: menuItems.restaurantId })
+        .select({
+          restaurantId: menuItems.restaurantId,
+          imageUrl: menuItems.imageUrl,
+        })
         .from(menuItems)
         .where(eq(menuItems.id, id))
         .limit(1);
@@ -275,14 +432,22 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
       if (updates.price !== undefined) allowedUpdates.price = updates.price;
       if (updates.category !== undefined)
         allowedUpdates.category = updates.category;
+      if (updates.isAvailable !== undefined)
+        allowedUpdates.isAvailable = updates.isAvailable;
       if (updates.is_available !== undefined)
         allowedUpdates.isAvailable = updates.is_available;
       if (updates.modifiers !== undefined)
         allowedUpdates.modifiers = updates.modifiers;
+      if (updates.imageUrl !== undefined)
+        allowedUpdates.imageUrl = updates.imageUrl;
       if (updates.image_url !== undefined)
         allowedUpdates.imageUrl = updates.image_url;
+      if (updates.displayOrder !== undefined)
+        allowedUpdates.displayOrder = updates.displayOrder;
       if (updates.display_order !== undefined)
         allowedUpdates.displayOrder = updates.display_order;
+      if (updates.foodCostPercent !== undefined)
+        allowedUpdates.foodCostPercent = String(updates.foodCostPercent);
       if (updates.food_cost_percent !== undefined)
         allowedUpdates.foodCostPercent = String(updates.food_cost_percent);
       allowedUpdates.updatedAt = new Date();
@@ -321,15 +486,26 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
    * DELETE /admin/restaurant/menu/items/:id
    */
   fastify.delete("/menu/items/:id", async (request, reply) => {
-    const { restaurant_id: restaurantId } = request.params as {
-      restaurant_id: string;
-    };
+    const restaurantId = request.user!.restaurantId;
     const user = request.user!;
     const { id } = request.params as { id: string };
 
+    if (!restaurantId) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: "BAD_REQUEST",
+          message: "User not associated with a restaurant",
+        },
+      });
+    }
+
     try {
       const existingResult = await db
-        .select({ restaurantId: menuItems.restaurantId })
+        .select({
+          restaurantId: menuItems.restaurantId,
+          imageUrl: menuItems.imageUrl,
+        })
         .from(menuItems)
         .where(eq(menuItems.id, id))
         .limit(1);
@@ -357,10 +533,25 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         });
       }
 
-      await db
-        .update(menuItems)
-        .set({ isAvailable: false, updatedAt: new Date() })
-        .where(eq(menuItems.id, id));
+      // Best-effort storage cleanup for menu-images public URLs
+      if (existing.imageUrl) {
+        try {
+          const marker = "/storage/v1/object/public/menu-images/";
+          const markerIndex = existing.imageUrl.indexOf(marker);
+          if (markerIndex >= 0) {
+            const objectPath = decodeURIComponent(
+              existing.imageUrl.slice(markerIndex + marker.length),
+            );
+            if (objectPath) {
+              await supabase.storage.from("menu-images").remove([objectPath]);
+            }
+          }
+        } catch {
+          // Ignore storage cleanup failures; DB deletion remains the source of truth.
+        }
+      }
+
+      await db.delete(menuItems).where(eq(menuItems.id, id));
 
       await writeAuditLog({
         adminId: user.id,
@@ -370,7 +561,7 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
         ipAddress: request.ip,
       });
 
-      return reply.send({ success: true, data: { status: "soft-deleted" } });
+      return reply.send({ success: true, data: { status: "deleted" } });
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({
@@ -389,9 +580,17 @@ export default async function restaurantAdminRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { period?: "daily" | "weekly" | "monthly" } }>(
     "/analytics",
     async (request, reply) => {
-      const { restaurant_id: restaurantId } = request.params as {
-        restaurant_id: string;
-      };
+      const restaurantId = request.user!.restaurantId;
+
+      if (!restaurantId) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "BAD_REQUEST",
+            message: "User not associated with a restaurant",
+          },
+        });
+      }
       const period = request.query.period || "daily";
 
       const now = new Date();

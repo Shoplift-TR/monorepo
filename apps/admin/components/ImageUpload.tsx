@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { adminApi } from "@/lib/api";
+import { Upload, X, Loader2 } from "lucide-react";
 
 interface ImageUploadProps {
   onUpload: (url: string) => void;
@@ -21,7 +21,54 @@ export default function ImageUpload({
   const [preview, setPreview] = useState(defaultValue);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    setPreview(defaultValue || "");
+  }, [defaultValue]);
+
+  const toWebPBlob = async (file: File): Promise<Blob> => {
+    const imageBitmap = await createImageBitmap(file);
+    const maxDimension = 1600;
+    const scale = Math.min(
+      1,
+      maxDimension / Math.max(imageBitmap.width, imageBitmap.height),
+    );
+
+    const targetWidth = Math.max(1, Math.round(imageBitmap.width * scale));
+    const targetHeight = Math.max(1, Math.round(imageBitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Unable to process image");
+
+    ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+
+    const blob: Blob | null = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/webp", 0.82);
+    });
+
+    if (!blob) throw new Error("Image compression failed");
+    return blob;
+  };
+
+  const blobToDataUrl = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+        } else {
+          reject(new Error("Failed to read image data"));
+        }
+      };
+      reader.onerror = () => reject(new Error("Failed to read image data"));
+      reader.readAsDataURL(blob);
+    });
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    let localPreviewUrl: string | null = null;
     try {
       setUploading(true);
       const file = e.target.files?.[0];
@@ -41,26 +88,29 @@ export default function ImageUpload({
         return;
       }
 
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // Immediate local preview while upload/optimization is in progress
+      localPreviewUrl = URL.createObjectURL(file);
+      setPreview(localPreviewUrl);
 
-      const { data, error: uploadError } = await supabaseAdmin.storage
-        .from(bucket)
-        .upload(filePath, file);
+      const optimized = await toWebPBlob(file);
+      const imageDataUrl = await blobToDataUrl(optimized);
+      const { data, error } = await adminApi.uploadMenuImage(imageDataUrl);
 
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
+      if (error) throw new Error(error);
+      const publicUrl = data?.url;
+      if (!publicUrl) throw new Error("Failed to receive uploaded image URL");
 
       setPreview(publicUrl);
       onUpload(publicUrl);
     } catch (error) {
       console.error("Error uploading image:", error);
-      alert("Error uploading image!");
+      const message =
+        error instanceof Error ? error.message : "Unknown upload error";
+      alert(`Error uploading image: ${message}`);
     } finally {
+      if (localPreviewUrl) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
       setUploading(false);
     }
   }

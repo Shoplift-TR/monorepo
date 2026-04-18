@@ -25,9 +25,38 @@ export default function MenuManagementPage() {
     setLoading(false);
   };
 
+  const getAvailability = (item: any) =>
+    item?.isAvailable ?? item?.is_available ?? true;
+
+  const getImageUrl = (item: any) => item?.imageUrl ?? item?.image_url ?? "";
+
+  const normalizeImageValue = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("blob:")) return undefined;
+
+    // Accept absolute public URLs (Supabase public URLs are absolute)
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return trimmed;
+      }
+    } catch {
+      // ignore, handled below
+    }
+
+    // Accept storage-relative paths for legacy values
+    if (/^[a-zA-Z0-9/_\-.]+$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    return undefined;
+  };
+
   const handleToggleActive = async (item: any) => {
     const { data } = await adminApi.updateMenuItem(item.id, {
-      is_available: !item.is_available,
+      isAvailable: !getAvailability(item),
     });
     if (data) {
       setItems(items.map((i) => (i.id === item.id ? data : i)));
@@ -40,8 +69,8 @@ export default function MenuManagementPage() {
       ...item,
       nameTr: item.name.tr,
       nameEn: item.name.en,
-      descTr: item.description.tr,
-      descEn: item.description.en,
+      descTr: item.description?.tr || "",
+      descEn: item.description?.en || "",
     });
   };
 
@@ -52,13 +81,17 @@ export default function MenuManagementPage() {
   };
 
   const saveEdit = async () => {
+    const normalizedImageUrl = normalizeImageValue(
+      editForm.imageUrl ?? editForm.image_url,
+    );
+
     const payload = {
       name: { tr: editForm.nameTr, en: editForm.nameEn },
       description: { tr: editForm.descTr, en: editForm.descEn },
       price: Number(editForm.price),
       category: editForm.category,
-      is_available: editForm.is_available ?? true,
-      ...(editForm.imageUrl !== undefined && { image_url: editForm.imageUrl }),
+      isAvailable: editForm.isAvailable ?? editForm.is_available ?? true,
+      ...(normalizedImageUrl !== undefined && { imageUrl: normalizedImageUrl }),
     };
 
     if (isCreating) {
@@ -92,7 +125,7 @@ export default function MenuManagementPage() {
             setIsCreating(true);
             setEditingId("new");
             setEditForm({
-              is_available: true,
+              isAvailable: true,
               category: categories[0] || "General",
             });
           }}
@@ -267,9 +300,9 @@ export default function MenuManagementPage() {
                         <td className="py-4 px-4">
                           <button
                             onClick={() => handleToggleActive(item)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold border transition ${item.is_available ? "bg-green-50 text-green-700 border-green-200" : "bg-zinc-100 text-zinc-500 border-zinc-200"}`}
+                            className={`px-3 py-1 rounded-full text-xs font-bold border transition ${getAvailability(item) ? "bg-green-50 text-green-700 border-green-200" : "bg-zinc-100 text-zinc-500 border-zinc-200"}`}
                           >
-                            {item.is_available ? "Active" : "Disabled"}
+                            {getAvailability(item) ? "Active" : "Disabled"}
                           </button>
                         </td>
                         <td className="py-4 px-4 flex justify-end gap-2">
@@ -393,7 +426,7 @@ export default function MenuManagementPage() {
                                   setEditForm({ ...editForm, imageUrl: url })
                                 }
                                 defaultValue={
-                                  editForm.imageUrl || editForm.image_url || ""
+                                  editForm.imageUrl || getImageUrl(editForm)
                                 }
                                 bucket="menu-images"
                                 className="w-full max-w-xs aspect-video bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-100 transition-colors overflow-hidden group"

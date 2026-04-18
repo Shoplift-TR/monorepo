@@ -31,9 +31,14 @@ async function fetcher<T>(
   const token = currentToken;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+
+  // Only send JSON content type when a request body exists.
+  // Prevents Fastify JSON parser errors on empty-body DELETE requests.
+  if (options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -52,11 +57,26 @@ async function fetcher<T>(
       return { data: null, error: "Unauthorized" };
     }
 
-    const result: ApiResponse<T> = await response.json();
+    const result: any = await response.json().catch(() => null);
+
+    if (!result) {
+      if (!response.ok) {
+        return {
+          data: null,
+          error: `Request failed with status ${response.status}`,
+        };
+      }
+      return { data: null, error: null };
+    }
 
     if (!response.ok || !result.success) {
       console.error(`fetcher ${endpoint} error:`, result.error, result);
-      return { data: null, error: result.error || "An error occurred" };
+      const message =
+        (typeof result.error === "string" && result.error) ||
+        result?.error?.message ||
+        result?.message ||
+        "An error occurred";
+      return { data: null, error: message };
     }
 
     return { data: result.data as T, error: null };
@@ -116,6 +136,14 @@ export const adminApi = {
     }),
   deleteMenuItem: (id: string) =>
     fetcher<any>(`/admin/restaurant/menu/items/${id}`, { method: "DELETE" }),
+  uploadMenuImage: (imageDataUrl: string) =>
+    fetcher<{ url: string; path: string }>(
+      "/admin/restaurant/menu/upload-image",
+      {
+        method: "POST",
+        body: JSON.stringify({ imageDataUrl }),
+      },
+    ),
   getAnalytics: (period: string) =>
     fetcher<any>(`/admin/restaurant/analytics?period=${period}`),
   rejectOrder: (id: string, reason?: string) =>

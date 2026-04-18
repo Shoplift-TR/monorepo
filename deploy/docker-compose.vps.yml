@@ -1,0 +1,35 @@
+services:
+  api:
+    image: ghcr.io/${IMAGE_OWNER}/shoplift-api:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    ports:
+      - "${API_PORT:-3001}:3001"
+
+  web:
+    image: ghcr.io/${IMAGE_OWNER}/shoplift-web:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+  admin:
+    image: ghcr.io/${IMAGE_OWNER}/shoplift-admin:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - "${ADMIN_PORT:-3002}:3002"
+    depends_on:
+      - api

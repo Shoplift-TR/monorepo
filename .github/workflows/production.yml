@@ -1,0 +1,211 @@
+name: Deploy Production (Self-Hosted)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE_PREFIX: shoplift
+  IMAGE_TAG: sha-${{ github.sha }}
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ env.IMAGE_TAG }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages and apps
+        run: |
+          npm run -w @shoplift/types build
+          npm run -w @shoplift/db build
+          npm run -w @shoplift/utils build
+          npm run -w @shoplift/api build
+          npm run -w @shoplift/web build
+          npm run -w @shoplift/admin build
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-api:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-api:prod-latest
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-api:${{ env.IMAGE_TAG }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-api:prod-latest
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-web:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-web:prod-latest
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-web:${{ env.IMAGE_TAG }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-web:prod-latest
+
+      - name: Build and push Admin image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-admin:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.REGISTRY_IMAGE_PREFIX }}-admin:prod-latest
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-admin:${{ env.IMAGE_TAG }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REGISTRY_IMAGE_PREFIX }}-admin:prod-latest
+
+  deploy-production:
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Deploy on VPS (production)
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ needs.build-and-publish.outputs.image_tag }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          PROD_PATH: ${{ secrets.VPS_PRODUCTION_PATH }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: IMAGE_TAG,GHCR_OWNER,GHCR_USERNAME,GHCR_TOKEN,DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,PROD_PATH
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "$PROD_PATH"
+
+            mkdir -p .deploy-meta
+
+            PREV_TAG=""
+            PREV_API_CID=$(docker compose ps -q api || true)
+            if [ -n "$PREV_API_CID" ]; then
+              PREV_IMAGE=$(docker inspect --format '{{.Config.Image}}' "$PREV_API_CID" || true)
+              if [ -n "$PREV_IMAGE" ]; then
+                PREV_TAG="${PREV_IMAGE##*:}"
+              fi
+            fi
+
+            if [ -n "$PREV_TAG" ]; then
+              echo "$PREV_TAG" > .deploy-meta/previous-image-tag
+            fi
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
+
+            export IMAGE_TAG
+            docker compose pull api web admin
+            docker compose up -d api web admin
+
+            # Run DB migrations
+            docker compose run --rm api npm run -w @shoplift/db db:migrate
+
+            # Restart API after migration
+            docker compose up -d api
+
+      - name: Smoke tests (health + auth + public)
+        run: |
+          set -euo pipefail
+
+          echo "Health check"
+          curl -fsS "${PROD_API_BASE_URL}/health" > /tmp/health.json
+          grep -q '"success":true' /tmp/health.json
+
+          echo "Auth check (/auth/me should be 401 without token)"
+          AUTH_STATUS=$(curl -s -o /tmp/auth_me.json -w "%{http_code}" "${PROD_API_BASE_URL}/auth/me")
+          if [ "$AUTH_STATUS" != "401" ]; then
+            echo "Expected 401 from /auth/me, got $AUTH_STATUS"
+            cat /tmp/auth_me.json
+            exit 1
+          fi
+
+          echo "Public endpoint check"
+          REST_STATUS=$(curl -s -o /tmp/restaurants.json -w "%{http_code}" "${PROD_API_BASE_URL}/restaurants")
+          if [ "$REST_STATUS" != "200" ]; then
+            echo "Expected 200 from /restaurants, got $REST_STATUS"
+            cat /tmp/restaurants.json
+            exit 1
+          fi
+        env:
+          PROD_API_BASE_URL: ${{ secrets.PROD_API_BASE_URL }}
+
+      - name: Rollback production on failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          PROD_PATH: ${{ secrets.VPS_PRODUCTION_PATH }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: PROD_PATH
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "$PROD_PATH"
+
+            if [ ! -f .deploy-meta/previous-image-tag ]; then
+              echo "No previous image tag found; skipping rollback"
+              exit 0
+            fi
+
+            ROLLBACK_TAG=$(cat .deploy-meta/previous-image-tag)
+            if [ -z "$ROLLBACK_TAG" ]; then
+              echo "Rollback tag empty; skipping rollback"
+              exit 0
+            fi
+
+            export IMAGE_TAG="$ROLLBACK_TAG"
+            docker compose pull api web admin
+            docker compose up -d api web admin
+            echo "Rollback applied with IMAGE_TAG=$ROLLBACK_TAG"

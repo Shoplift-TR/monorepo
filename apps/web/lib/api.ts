@@ -165,6 +165,35 @@ export const ordersApi = {
     fetcher<any>(`/orders/${id}/cancel`, { method: "POST" }),
   history: () => fetcher<Order[]>("/orders/history"),
   getReceiptUrl: (id: string) => `${BASE_URL}/orders/${id}/receipt`,
+  downloadReceipt: async (id: string): Promise<ApiResult<Blob>> => {
+    try {
+      const token = await getSupabaseToken();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const response = await fetch(`${BASE_URL}/orders/${id}/receipt`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+      });
+
+      if (!response.ok) {
+        let message = "Failed to download receipt";
+        try {
+          const body = await response.json();
+          message = body?.error?.message || body?.error || message;
+        } catch {
+          // ignore non-JSON response parsing
+        }
+        return { data: null, error: message };
+      }
+
+      const blob = await response.blob();
+      return { data: blob, error: null };
+    } catch (error: any) {
+      return { data: null, error: error?.message || "Network error" };
+    }
+  },
 };
 
 // --- Promos ---

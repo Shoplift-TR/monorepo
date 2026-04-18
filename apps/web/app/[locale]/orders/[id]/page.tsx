@@ -119,6 +119,23 @@ export default function OrderDetailsPage() {
     }
   };
 
+  const handleDownloadReceipt = async () => {
+    const { data, error } = await ordersApi.downloadReceipt(id as string);
+    if (error || !data) {
+      showToast.error(error || "Failed to download receipt");
+      return;
+    }
+
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `receipt_${String(id).slice(0, 8)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50">
@@ -342,15 +359,14 @@ export default function OrderDetailsPage() {
           "OUT_FOR_DELIVERY",
           "DELIVERED",
         ].includes(order.status) && (
-          <a
-            href={ordersApi.getReceiptUrl(id as string)}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={handleDownloadReceipt}
             className="flex items-center justify-center gap-2 w-full h-12 rounded-[12px] bg-white border border-zinc-200 text-zinc-900 font-bold hover:bg-zinc-50 transition-colors"
           >
             <FileText className="w-5 h-5 text-zinc-500" />
             Download Receipt (PNG)
-          </a>
+          </button>
         )}
 
         {/* Cancel Button */}

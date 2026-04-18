@@ -25,12 +25,19 @@ interface MarketingPayload {
 }
 
 const N8N_WEBHOOK_BASE_URL =
-  process.env.N8N_WEBHOOK_BASE_URL || "http://n8n:5678/webhook";
+  process.env.N8N_WEBHOOK_BASE_URL ||
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:5678/webhook"
+    : "http://n8n:5678/webhook");
+
+const shouldSkipWebhookInDev =
+  process.env.NODE_ENV === "development" && !process.env.N8N_WEBHOOK_BASE_URL;
 
 /**
  * Sends a notification to n8n for a new order.
  */
 export async function notifyNewOrder(payload: NewOrderPayload) {
+  if (shouldSkipWebhookInDev) return;
   try {
     const url = `${N8N_WEBHOOK_BASE_URL}/new-order`;
     fetch(url, {
@@ -49,6 +56,7 @@ export async function notifyNewOrder(payload: NewOrderPayload) {
  * Sends a notification to n8n for an order status change.
  */
 export async function notifyOrderStatusChange(payload: OrderStatusPayload) {
+  if (shouldSkipWebhookInDev) return;
   try {
     const url = `${N8N_WEBHOOK_BASE_URL}/order-status`;
     fetch(url, {
@@ -67,6 +75,7 @@ export async function notifyOrderStatusChange(payload: OrderStatusPayload) {
  * Sends a marketing notification to n8n.
  */
 export async function notifyMarketing(payload: MarketingPayload) {
+  if (shouldSkipWebhookInDev) return;
   try {
     const url = `${N8N_WEBHOOK_BASE_URL}/marketing`;
     fetch(url, {

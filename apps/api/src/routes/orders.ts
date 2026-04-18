@@ -818,13 +818,58 @@ export default async function orderRoutes(fastify: FastifyInstance) {
           .where(eq(receipts.orderId, id))
           .limit(1);
 
-        const receipt = receiptResult[0];
+        let receipt = receiptResult[0];
+
+        // Try to generate on-demand if not ready yet.
+        // This covers cases where async generation was delayed/failed earlier.
         if (!receipt || receipt.status !== "generated") {
+          await processReceipt(id);
+
+          const refreshedReceiptResult = await db
+            .select()
+            .from(receipts)
+            .where(eq(receipts.orderId, id))
+            .limit(1);
+
+          receipt = refreshedReceiptResult[0];
+        }
+
+        if (!receipt) {
           return reply.status(404).send({
             success: false,
             error: {
               code: "NOT_FOUND",
-              message: "Receipt not generated yet or failed",
+              message: "Receipt not found",
+            },
+          });
+        }
+
+        if (receipt.status === "pending") {
+          return reply.status(202).send({
+            success: false,
+            error: {
+              code: "PENDING",
+              message: "Receipt is being generated. Please try again shortly.",
+            },
+          });
+        }
+
+        if (receipt.status === "failed") {
+          return reply.status(500).send({
+            success: false,
+            error: {
+              code: "RECEIPT_GENERATION_FAILED",
+              message: "Receipt generation failed. Please try again.",
+            },
+          });
+        }
+
+        if (receipt.status !== "generated" || !receipt.pngUrl) {
+          return reply.status(500).send({
+            success: false,
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Receipt is not available",
             },
           });
         }

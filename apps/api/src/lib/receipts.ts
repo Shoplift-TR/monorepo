@@ -4,6 +4,7 @@ import { db, receipts, orders, restaurants } from "@shoplift/db";
 import { eq } from "drizzle-orm";
 import { supabase } from "./supabase.js";
 import { Resend } from "resend";
+import { readFile } from "node:fs/promises";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -14,11 +15,78 @@ let fontBuffer: ArrayBuffer | null = null;
 
 async function getFont() {
   if (fontBuffer) return fontBuffer;
-  const url =
-    "https://github.com/google/fonts/raw/main/ofl/inter/Inter-Regular.ttf";
-  const response = await fetch(url);
-  fontBuffer = await response.arrayBuffer();
-  return fontBuffer;
+
+  // 1) Prefer local system font files (works in offline/dev environments)
+  const localFontPaths = [
+    process.env.RECEIPT_FONT_PATH,
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+  ].filter(Boolean) as string[];
+
+  for (const fontPath of localFontPaths) {
+    try {
+      const file = await readFile(fontPath);
+      const ab = file.buffer.slice(
+        file.byteOffset,
+        file.byteOffset + file.byteLength,
+      );
+      fontBuffer = ab;
+      console.log(
+        `[RECEIPT] Font loaded from local path ${fontPath} (${fontBuffer.byteLength} bytes)`,
+      );
+      return fontBuffer;
+    } catch {
+      // Try next path
+    }
+  }
+
+  // 2) Fallback to remote font sources
+  const fontUrls = [
+    // GitHub raw
+    "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter-Regular.ttf",
+    // jsDelivr CDN
+    "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/inter/Inter-Regular.ttf",
+    // Google Fonts CSS2 static (version can vary)
+    "https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIa0ZL7SUc.woff2",
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const url of fontUrls) {
+    try {
+      console.log(`[RECEIPT] Attempting to fetch font from ${url}...`);
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; Shoplift/1.0; +http://shoplift.local)",
+        },
+      });
+
+      if (response.ok) {
+        fontBuffer = await response.arrayBuffer();
+        console.log(
+          `[RECEIPT] Font loaded from ${url} (${fontBuffer.byteLength} bytes)`,
+        );
+        return fontBuffer;
+      } else {
+        console.warn(
+          `[RECEIPT] Font fetch from ${url} returned ${response.status}`,
+        );
+        lastError = new Error(
+          `Font fetch returned ${response.status} from ${url}`,
+        );
+      }
+    } catch (error) {
+      console.warn(`[RECEIPT] Font fetch from ${url} failed:`, error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  throw new Error(
+    `Failed to fetch font from any source. Last error: ${lastError?.message}`,
+  );
 }
 
 export async function generateReceiptPng(orderId: string): Promise<Buffer> {
@@ -270,6 +338,7 @@ export async function generateReceiptPng(orderId: string): Promise<Buffer> {
 }
 
 export async function processReceipt(orderId: string) {
+  console.log(`[RECEIPT] Starting processing for order: ${orderId}`);
   try {
     // 1. Check if receipt already exists (idempotency)
     const existingResult = await db
@@ -282,8 +351,26 @@ export async function processReceipt(orderId: string) {
       return;
     }
 
+    // Mark as pending for visibility and safer retries
+    await db
+      .insert(receipts)
+      .values({
+        orderId,
+        pngUrl: "",
+        status: "pending",
+      })
+      .onConflictDoUpdate({
+        target: receipts.orderId,
+        set: {
+          status: "pending",
+          updatedAt: new Date(),
+        },
+      });
+
     // 2. Generate PNG
+    console.log(`[RECEIPT] Generating PNG for ${orderId}...`);
     const pngBuffer = await generateReceiptPng(orderId);
+    console.log(`[RECEIPT] PNG generated (${pngBuffer.length} bytes)`);
 
     // 3. Upload to Supabase Storage
     const fileName = `receipt_${orderId}.png`;
@@ -320,7 +407,9 @@ export async function processReceipt(orderId: string) {
       });
 
     // 5. Send Email
+    console.log(`[RECEIPT] Sending email for ${orderId}...`);
     await sendReceiptEmail(orderId, pngBuffer, publicUrl);
+    console.log(`[RECEIPT] Email task completed for ${orderId}`);
   } catch (error) {
     console.error(`Failed to process receipt for order ${orderId}:`, error);
     // Optionally update status to 'failed' in DB

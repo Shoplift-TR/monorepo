@@ -25,10 +25,12 @@ export default function LoginPage() {
   // Redirect if already logged in or just logged in
   useEffect(() => {
     if (user) {
+      const adminBaseUrl =
+        process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3002";
       if (user.role === "restaurant_admin") {
-        router.push(`/${locale}/admin/restaurant/orders`);
+        window.location.href = `${adminBaseUrl}/${locale}/restaurant/orders`;
       } else if (user.role === "super_admin") {
-        router.push(`/${locale}/admin/super`);
+        window.location.href = `${adminBaseUrl}/${locale}/super`;
       } else {
         router.push(`/${locale}/restaurants`);
       }

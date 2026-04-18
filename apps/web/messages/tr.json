@@ -67,6 +67,7 @@
   "restaurants": {
     "searchPlaceholder": "Restoran ve market arayın",
     "popularSearches": "Popüler aramalar",
+    "loading": "Restoranlar yükleniyor...",
     "deliveryTime": "{min}-{max} dk",
     "freeDelivery": "Ücretsiz",
     "minOrder": "Min. {amount}",

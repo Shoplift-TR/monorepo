@@ -11,6 +11,8 @@ interface ClientWrapperProps {
   initialRestaurants: Restaurant[];
   locale: string;
   currentCuisine: string;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 const CUISINES = ["Burger", "Pizza", "Doner", "Sushi", "Healthy", "Vegan"];
@@ -19,6 +21,8 @@ export default function ClientWrapper({
   initialRestaurants,
   locale,
   currentCuisine,
+  isLoading = false,
+  error = null,
 }: ClientWrapperProps) {
   const t = useTranslations("restaurants");
   const router = useRouter();
@@ -128,7 +132,25 @@ export default function ClientWrapper({
 
         {/* Restaurant List */}
         <div className="flex flex-col gap-6">
-          {initialRestaurants.length === 0 ? (
+          {error && (
+            <div className="py-8 px-4 bg-red-50 border border-red-200 rounded-lg text-center">
+              <p className="text-red-700 font-medium">
+                Failed to load restaurants
+              </p>
+              <p className="text-red-600 text-sm mt-1">{error}</p>
+            </div>
+          )}
+
+          {isLoading && initialRestaurants.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="inline-block">
+                <div className="w-8 h-8 border-3 border-[#92fc40] border-t-[#101744] rounded-full animate-spin"></div>
+              </div>
+              <p className="text-zinc-500 font-medium mt-3">
+                Loading restaurants...
+              </p>
+            </div>
+          ) : initialRestaurants.length === 0 ? (
             <div className="py-12 text-center text-zinc-500 font-medium">
               {t("noRestaurants")}
             </div>

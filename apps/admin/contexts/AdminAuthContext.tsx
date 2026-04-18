@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface AdminUser {
   id: string;
@@ -27,6 +27,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = pathname?.split("/")[1] || "en";
+
+  const withLocale = (path: string) =>
+    path.startsWith(`/${locale}/`) ? path : `/${locale}${path}`;
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -176,7 +181,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await supabaseAdmin.auth.signOut();
     setUser(null);
-    router.push("/login");
+    router.push(withLocale("/login"));
   };
 
   return (

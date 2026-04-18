@@ -16,22 +16,25 @@ export default function ProtectedAdminRoute({
   const { user, loading } = useAdminAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const locale = pathname?.split("/")[1] || "en";
+  const withLocale = (path: string) =>
+    path.startsWith(`/${locale}/`) ? path : `/${locale}${path}`;
 
   useEffect(() => {
     if (loading) return;
 
     if (!user) {
-      router.push("/login");
+      router.push(withLocale("/login"));
       return;
     }
 
     if (!allowedRoles.includes(user.role as any)) {
       if (user.role === "super_admin") {
-        router.push("/super");
+        router.push(withLocale("/super"));
       } else if (user.role === "restaurant_admin") {
-        router.push("/restaurant/orders");
+        router.push(withLocale("/restaurant/orders"));
       } else {
-        router.push("/login");
+        router.push(withLocale("/login"));
       }
     }
   }, [user, loading, allowedRoles, router, pathname]);

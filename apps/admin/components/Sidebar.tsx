@@ -32,6 +32,9 @@ export default function Sidebar() {
     dismissNotification,
   } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
+  const locale = pathname?.split("/")[1] || "en";
+  const withLocale = (path: string) =>
+    path.startsWith(`/${locale}/`) ? path : `/${locale}${path}`;
 
   if (!user) return null;
 
@@ -55,7 +58,7 @@ export default function Sidebar() {
   const navItems = isSuper ? superNav : restaurantNav;
 
   const SidebarContent = (
-    <div className="flex flex-col h-full bg-white border-r border-zinc-100 w-[240px]">
+    <div className="flex flex-col h-full bg-white border-r border-zinc-100 w-60">
       <div className="p-6">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-black tracking-tight text-zinc-900">
@@ -92,7 +95,7 @@ export default function Sidebar() {
           </button>
 
           {showNotifications && (
-            <div className="absolute left-full ml-2 top-0 w-64 bg-white border border-zinc-100 rounded-xl shadow-xl z-[100] p-4 max-h-[400px] overflow-y-auto">
+            <div className="absolute left-full ml-2 top-0 w-64 bg-white border border-zinc-100 rounded-xl shadow-xl z-100 p-4 max-h-100 overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-xs text-zinc-900 uppercase tracking-wider">
                   Alerts
@@ -144,10 +147,10 @@ export default function Sidebar() {
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={withLocale(item.href)}
               onClick={() => setMobileOpen(false)}
               className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-[8px] text-sm font-medium transition-colors
+                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                 ${
                   isActive
                     ? "bg-[#E2103C] text-white"
@@ -168,7 +171,7 @@ export default function Sidebar() {
             setMobileOpen(false);
             logout();
           }}
-          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-[8px] text-sm font-medium text-[#E2103C] hover:bg-red-50 transition-colors"
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-sm font-medium text-[#E2103C] hover:bg-red-50 transition-colors"
         >
           <LogOut className="w-5 h-5" />
           Logout
@@ -207,10 +210,7 @@ export default function Sidebar() {
           className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         >
-          <div
-            className="h-full w-[240px]"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="h-full w-60" onClick={(e) => e.stopPropagation()}>
             {SidebarContent}
           </div>
         </div>

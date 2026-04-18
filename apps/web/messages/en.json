@@ -66,6 +66,7 @@
   },
   "restaurants": {
     "popularSearches": "Popular searches",
+    "loading": "Loading restaurants...",
     "deliveryTime": "{min}-{max} mins",
     "searchPlaceholder": "Search for restaurants and shops",
     "freeDelivery": "Free",

@@ -3,11 +3,16 @@ import { notFound } from "next/navigation";
 
 // Can be imported from a shared config
 const locales = ["en", "tr"];
+const defaultLocale = "tr";
 
 export default getRequestConfig(async ({ requestLocale }) => {
-  // Validate that the incoming `locale` parameter is valid
-  const locale = await requestLocale;
-  if (!locale || !locales.includes(locale)) notFound();
+  // requestLocale can be undefined during some startup/render edge-cases;
+  // fall back instead of forcing notFound (which surfaces as 404).
+  const requested = await requestLocale;
+  const locale =
+    requested && locales.includes(requested) ? requested : defaultLocale;
+
+  if (!locales.includes(locale)) notFound();
 
   return {
     locale,

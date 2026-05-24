@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { OrderTrackingProvider } from "@/contexts/OrderTrackingContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Toaster } from "sonner";
 import Navbar from "@/components/Navbar";
@@ -35,7 +36,7 @@ export default async function RootLayout({
 
   // Providing all messages to the client
   // side is the easiest way to get started
-  const messages = (await getMessages()) as any;
+  const messages = await getMessages();
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -44,8 +45,10 @@ export default async function RootLayout({
           <NextIntlClientProvider locale={locale} messages={messages}>
             <AuthProvider>
               <CartProvider>
-                <Navbar />
-                <main className="pt-20">{children}</main>
+                <OrderTrackingProvider>
+                  <Navbar />
+                  <main className="pt-20">{children}</main>
+                </OrderTrackingProvider>
               </CartProvider>
             </AuthProvider>
           </NextIntlClientProvider>

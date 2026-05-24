@@ -1,20 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import { ordersApi } from "@/lib/api";
-import { supabase } from "@/lib/supabase-client";
+import { useOrderTracking } from "@/hooks/useOrderTracking";
 import { showToast } from "@/lib/toast";
 import {
   ArrowLeft,
   Check,
-  Clock,
-  Package,
-  Bike,
-  Home,
   XCircle,
   FileText,
+  RefreshCw,
+  Bell,
+  MapPin,
 } from "lucide-react";
 import Map from "@/components/Map";
 
@@ -31,97 +30,51 @@ export default function OrderDetailsPage() {
   const t = useTranslations("orderDetail");
   const router = useRouter();
   const { locale, id } = useParams();
-  const [order, setOrder] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [driverPos, setDriverPos] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
 
-  useEffect(() => {
-    fetchOrder();
+  // Use the enhanced order tracking hook
+  const {
+    order,
+    isLoading,
+    isRealTime,
+    driverPosition,
+    estimatedDeliveryTime,
+    progressPercentage,
+    canCancel,
+    refreshTracking,
+    cancelOrder: cancelOrderAction,
+  } = useOrderTracking(id as string);
 
-    // Subscribe to real-time status updates
-    const subscription = supabase
-      .channel(`order-${id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "orders",
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          console.log("Order status updated:", payload.new);
-          setOrder(payload.new);
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [id]);
-
-  // Driver movement simulation
-  useEffect(() => {
-    if (!order || order.status !== "OUT_FOR_DELIVERY") return;
-
-    const rLat = Number(order.restaurant_lat);
-    const rLng = Number(order.restaurant_lng);
-    const cLat = Number(order.customer_lat);
-    const cLng = Number(order.customer_lng);
-
-    if (!rLat || !cLat) return;
-
-    let progress = 0.3; // Start 30% along the path
-    setDriverPos({
-      lat: rLat + (cLat - rLat) * progress,
-      lng: rLng + (cLng - rLng) * progress,
-    });
-
-    const interval = setInterval(() => {
-      progress += 0.01;
-      if (progress >= 1) {
-        clearInterval(interval);
-        return;
-      }
-      setDriverPos({
-        lat: rLat + (cLat - rLat) * progress,
-        lng: rLng + (cLng - rLng) * progress,
-      });
-    }, 3000); // Update every 3s
-
-    return () => clearInterval(interval);
-  }, [order?.status]);
-
-  const fetchOrder = async () => {
-    setLoading(true);
-    const { data, error } = await ordersApi.get(id as string);
-    if (data) {
-      setOrder(data);
-    } else {
-      setError(error || "Order not found");
-    }
-    setLoading(false);
-  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleCancel = async () => {
-    if (!order || order.status !== "PENDING") return;
+    if (!canCancel) return;
 
-    const { error } = await ordersApi.cancel(id as string);
-    if (!error) {
-      fetchOrder();
-    } else {
-      showToast.error(error);
+    try {
+      await cancelOrderAction();
+      showToast.success("Order cancelled successfully");
+    } catch (error) {
+      console.error(error);
+      showToast.error("Failed to cancel order");
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshTracking();
+      showToast.success("Order status updated");
+    } catch (error) {
+      console.error(error);
+      showToast.error("Failed to refresh order");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   const handleDownloadReceipt = async () => {
     const { data, error } = await ordersApi.downloadReceipt(id as string);
     if (error || !data) {
+      console.error(error);
       showToast.error(error || "Failed to download receipt");
       return;
     }
@@ -136,18 +89,21 @@ export default function OrderDetailsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50">
-        <div className="w-10 h-10 border-4 border-red-500 border-t-transparent animate-spin rounded-full" />
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-red-500 border-t-transparent animate-spin rounded-full mx-auto mb-4" />
+          <p className="text-zinc-600">Loading order details...</p>
+        </div>
       </div>
     );
   }
 
-  if (error || !order) {
+  if (!order) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
-        <p className="text-zinc-500 mb-6">{error || "Something went wrong"}</p>
+        <p className="text-zinc-500 mb-6">Order not found</p>
         <button
           onClick={() => router.push(`/${locale}/orders`)}
           className="px-6 h-12 rounded-full border border-zinc-200"
@@ -161,39 +117,71 @@ export default function OrderDetailsPage() {
   const currentStepIndex = STEPS.indexOf(order.status);
   const isCancelled = order.status === "CANCELLED";
 
-  const getStepIcon = (step: string) => {
-    switch (step) {
-      case "PENDING":
-        return <Clock className="w-5 h-5" />;
-      case "CONFIRMED":
-        return <Check className="w-5 h-5" />;
-      case "PREPARING":
-        return <Package className="w-5 h-5" />;
-      case "READY_FOR_PICKUP":
-        return <Check className="w-5 h-5" />;
-      case "OUT_FOR_DELIVERY":
-        return <Bike className="w-5 h-5" />;
-      case "DELIVERED":
-        return <Home className="w-5 h-5" />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F5F5F5] pb-20">
-      {/* Header */}
+      {/* Header with real-time indicator */}
       <div className="sticky top-0 z-10 bg-white border-b border-zinc-100 px-4 h-16 flex items-center justify-between">
-        <button onClick={() => router.push(`/${locale}`)} className="p-2 -ml-2">
+        <button
+          onClick={() => router.push(`/${locale}/orders`)}
+          className="p-2 -ml-2"
+        >
           <ArrowLeft className="w-6 h-6 text-zinc-900" />
         </button>
-        <h1 className="text-lg font-bold text-zinc-900">{t("title")}</h1>
-        <div className="w-10" />
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold text-zinc-900">{t("title")}</h1>
+          {isRealTime && (
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-green-600 font-medium">Live</span>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="p-2 -mr-2 disabled:opacity-50"
+        >
+          <RefreshCw
+            className={`w-5 h-5 text-zinc-900 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+        </button>
       </div>
 
       <div className="max-w-md mx-auto p-4 space-y-4">
-        {/* Status Stepper Card */}
+        {/* Order Status Card */}
         <div className="bg-white p-6 rounded-[12px] shadow-sm border border-zinc-100">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-bold text-zinc-900">Order Status</h2>
+            {estimatedDeliveryTime && (
+              <div className="text-right">
+                <p className="text-xs text-zinc-500">Est. Delivery</p>
+                <p className="text-sm font-bold text-zinc-900">
+                  {new Date(estimatedDeliveryTime).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-zinc-500">Progress</span>
+              <span className="text-xs font-bold text-zinc-700">
+                {Math.round(progressPercentage)}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#E2103C] transition-all duration-500 ease-out"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Status Steps */}
           <div className="flex flex-col space-y-6">
             {STEPS.map((step, idx) => {
               const isActive = step === order.status;
@@ -206,10 +194,10 @@ export default function OrderDetailsPage() {
                   <div className="flex flex-col items-center">
                     <div
                       className={`
-                      w-8 h-8 rounded-full flex items-center justify-center relative z-1
+                      w-8 h-8 rounded-full flex items-center justify-center relative z-1 transition-all
                       ${
                         isActive
-                          ? "bg-[#E2103C] shadow-lg shadow-red-200"
+                          ? "bg-[#E2103C] shadow-lg shadow-red-200 scale-110"
                           : isPast
                             ? "bg-[#E2103C]"
                             : "bg-zinc-100 text-zinc-400"
@@ -226,22 +214,33 @@ export default function OrderDetailsPage() {
                     </div>
                     {idx < STEPS.length - 1 && !isCancelled && (
                       <div
-                        className={`w-[2px] h-10 -my-1 ${isPast ? "bg-[#E2103C]" : "bg-zinc-100"}`}
+                        className={`w-0.5 h-10 -my-1 transition-all ${
+                          isPast ? "bg-[#E2103C]" : "bg-zinc-100"
+                        }`}
                       />
                     )}
                   </div>
-                  <div className="pt-1">
+                  <div className="pt-1 flex-1">
                     <p
-                      className={`text-sm font-bold ${isActive ? "text-[#E2103C]" : isPast ? "text-zinc-900" : "text-zinc-400"}`}
+                      className={`text-sm font-bold transition-colors ${
+                        isActive
+                          ? "text-[#E2103C]"
+                          : isPast
+                            ? "text-zinc-900"
+                            : "text-zinc-400"
+                      }`}
                     >
                       {t(`status.${step}`)}
                     </p>
                     {isActive && (
                       <p className="text-xs text-zinc-500 mt-1">
                         {step === "OUT_FOR_DELIVERY"
-                          ? t("onTheWay")
-                          : t("liveTracking")}
+                          ? "Driver is on the way"
+                          : "Being processed"}
                       </p>
+                    )}
+                    {isPast && (
+                      <p className="text-xs text-green-600 mt-1">Completed</p>
                     )}
                   </div>
                 </div>
@@ -263,68 +262,78 @@ export default function OrderDetailsPage() {
           </div>
         </div>
 
-        {/* Map Integration */}
-        <div className="bg-white p-2 rounded-[16px] shadow-sm border border-zinc-100 overflow-hidden h-[240px]">
-          {order.restaurant_lat && order.customer_lat ? (
-            <Map
-              center={{
-                lat:
-                  (Number(order.restaurant_lat) + Number(order.customer_lat)) /
-                  2,
-                lng:
-                  (Number(order.restaurant_lng) + Number(order.customer_lng)) /
-                  2,
-              }}
-              zoom={13}
-              markers={[
-                {
-                  lat: Number(order.restaurant_lat),
-                  lng: Number(order.restaurant_lng),
-                  color: "#E2103C",
-                  label: "Shop",
-                },
-                {
-                  lat: Number(order.customer_lat),
-                  lng: Number(order.customer_lng),
-                  color: "#000",
-                  label: "Home",
-                },
-              ]}
-              driverLocation={driverPos || undefined}
-              className="h-full w-full rounded-[12px]"
-            />
-          ) : (
-            <div className="h-full w-full bg-zinc-100 flex items-center justify-center text-zinc-400">
-              No location data available
+        {/* Enhanced Map with Real-time Tracking */}
+        {order.restaurant_lat && order.customer_lat && (
+          <div className="bg-white p-2 rounded-[16px] shadow-sm border border-zinc-100 overflow-hidden">
+            <div className="p-3 border-b border-zinc-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-zinc-500" />
+                  <h3 className="text-sm font-bold text-zinc-900">
+                    Live Tracking
+                  </h3>
+                </div>
+                {order.status === "OUT_FOR_DELIVERY" && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-xs text-green-600">
+                      Driver moving
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+            <div className="h-60">
+              <Map
+                center={{
+                  lat:
+                    (Number(order.restaurant_lat) +
+                      Number(order.customer_lat)) /
+                    2,
+                  lng:
+                    (Number(order.restaurant_lng) +
+                      Number(order.customer_lng)) /
+                    2,
+                }}
+                zoom={13}
+                markers={[
+                  {
+                    lat: Number(order.restaurant_lat),
+                    lng: Number(order.restaurant_lng),
+                    color: "#E2103C",
+                    label: "Restaurant",
+                  },
+                  {
+                    lat: Number(order.customer_lat),
+                    lng: Number(order.customer_lng),
+                    color: "#000",
+                    label: "Your Location",
+                  },
+                ]}
+                driverLocation={driverPosition || undefined}
+                className="h-full w-full"
+              />
+            </div>
+          </div>
+        )}
 
-        {/* Items Card */}
+        {/* Order Summary */}
         <div className="bg-white p-6 rounded-[12px] shadow-sm border border-zinc-100 space-y-4">
           <h2 className="text-lg font-bold text-zinc-900">{t("summary")}</h2>
           <div className="space-y-4">
-            {order.items.map((item: any, idx: number) => (
+            {order.items.map((item, idx) => (
               <div key={idx} className="flex justify-between text-sm">
                 <div className="flex-1">
                   <p className="font-bold text-zinc-900">
-                    {item.quantity}x{" "}
-                    {typeof item.name === "object"
-                      ? item.name[locale as "tr" | "en"]
-                      : item.name}
+                    {item.quantity}x {item.name[locale as "tr" | "en"]}
                   </p>
-                  {item.selectedModifiers?.map((m: any, midx: number) => (
+                  {item.modifiers.map((modifier, midx) => (
                     <p key={midx} className="text-xs text-zinc-500">
-                      {m.optionName}
+                      {modifier.name[locale as "tr" | "en"]}
                     </p>
                   ))}
                 </div>
-                <p className="font-medium">
-                  ₺
-                  {(item.lineTotal || item.unitPrice * item.quantity).toFixed(
-                    2,
-                  )}
-                </p>
+                <p className="font-medium">₺{item.subtotal.toFixed(2)}</p>
               </div>
             ))}
 
@@ -335,7 +344,7 @@ export default function OrderDetailsPage() {
               </div>
               <div className="flex justify-between text-zinc-600 text-sm">
                 <span>Delivery Fee</span>
-                <span>₺{Number(order.delivery_fee).toFixed(2)}</span>
+                <span>₺{Number(order.deliveryFee).toFixed(2)}</span>
               </div>
               {order.discount > 0 && (
                 <div className="flex justify-between text-green-600 text-sm">
@@ -351,33 +360,49 @@ export default function OrderDetailsPage() {
           </div>
         </div>
 
-        {/* Receipt Button */}
-        {[
-          "CONFIRMED",
-          "PREPARING",
-          "READY_FOR_PICKUP",
-          "OUT_FOR_DELIVERY",
-          "DELIVERED",
-        ].includes(order.status) && (
-          <button
-            type="button"
-            onClick={handleDownloadReceipt}
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-[12px] bg-white border border-zinc-200 text-zinc-900 font-bold hover:bg-zinc-50 transition-colors"
-          >
-            <FileText className="w-5 h-5 text-zinc-500" />
-            Download Receipt (PNG)
-          </button>
-        )}
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          {/* Receipt Button */}
+          {[
+            "CONFIRMED",
+            "PREPARING",
+            "READY_FOR_PICKUP",
+            "OUT_FOR_DELIVERY",
+            "DELIVERED",
+          ].includes(order.status) && (
+            <button
+              type="button"
+              onClick={handleDownloadReceipt}
+              className="flex items-center justify-center gap-2 w-full h-12 rounded-[12px] bg-white border border-zinc-200 text-zinc-900 font-bold hover:bg-zinc-50 transition-colors"
+            >
+              <FileText className="w-5 h-5 text-zinc-500" />
+              Download Receipt
+            </button>
+          )}
 
-        {/* Cancel Button */}
-        {order.status === "PENDING" && (
-          <button
-            onClick={handleCancel}
-            className="w-full h-14 rounded-[12px] border-2 border-[#E2103C] text-[#E2103C] font-bold text-lg hover:bg-red-50 transition-colors"
-          >
-            {t("cancelOrder")}
-          </button>
-        )}
+          {/* Cancel Button */}
+          {canCancel && (
+            <button
+              onClick={handleCancel}
+              className="w-full h-14 rounded-[12px] border-2 border-[#E2103C] text-[#E2103C] font-bold text-lg hover:bg-red-50 transition-colors"
+            >
+              Cancel Order
+            </button>
+          )}
+
+          {/* Notification Settings */}
+          {isRealTime && (
+            <button
+              onClick={() => {
+                showToast.success("Notifications are enabled for this order");
+              }}
+              className="flex items-center justify-center gap-2 w-full h-12 rounded-[12px] bg-[#E2103C] text-white font-bold hover:bg-[#c20830] transition-colors"
+            >
+              <Bell className="w-4 h-4" />
+              Notifications Enabled
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
